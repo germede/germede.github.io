@@ -1,0 +1,287 @@
+body {
+    background: #0080FF;
+    color: #808080;
+    font-family: Palatino, Palatino Linotype, URW Palladio L, Tex Gyre Pagella, serif;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    font-family: Helvetica, Tex Gyre Heros, Arial, sans-serif;
+    font-weight: bold;
+    color: #404040;
+}
+
+code {
+    font-family: Courier New, Tex Gyre Cursor, Courier, monospace;
+}
+
+article>p {
+    text-align: justify;
+    text-justify: inter-word;
+}
+
+/* CAROUSEL */
+.carousel {
+    margin: 0 auto 2em auto;
+    perspective: 100vw;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.carousel>figure {
+    margin: 0;
+    transform-origin: 50% 50% -100vw;
+    transform-style: preserve-3d;
+    animation: rotate360 36s infinite forwards linear;
+}
+
+.carousel>figure:active {
+    cursor: grab;
+    animation-play-state: paused;
+}
+
+.carousel>figure>* {
+    margin-bottom: 0;
+    font-size: 2em;
+    text-align: center !important;
+}
+
+.carousel>figure>*:not(:first-of-type) {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform-origin: 50% 50% -100vw;
+}
+
+.carousel>figure>*:nth-child(2) {
+    transform: rotateY(030deg);
+}
+
+.carousel>figure>*:nth-child(3) {
+    transform: rotateY(060deg);
+}
+
+.carousel>figure>*:nth-child(4) {
+    transform: rotateY(090deg);
+}
+
+.carousel>figure>*:nth-child(5) {
+    transform: rotateY(120deg);
+}
+
+.carousel>figure>*:nth-child(6) {
+    transform: rotateY(150deg);
+}
+
+.carousel>figure>*:nth-child(7) {
+    transform: rotateY(180deg);
+}
+
+.carousel>figure>*:nth-child(8) {
+    transform: rotateY(210deg);
+}
+
+.carousel>figure>*:nth-child(9) {
+    transform: rotateY(240deg);
+}
+
+@keyframes rotate360 {
+    from {
+        transform: rotateY(0deg);
+    }
+
+    to {
+        transform: rotateY(-360deg);
+    }
+}
+
+/* TYPEWRITER */
+.type>span>span:nth-child(2),
+.type>span>span:nth-child(3) {
+    display: none;
+}
+
+@media screen and (min-width: 737px) {
+    .type {
+        display: inline-block;
+        vertical-align: bottom;
+    }
+
+    .type>span {
+        display: grid;
+        overflow: hidden;
+        height: 1.2em;
+    }
+
+    .type>span>span {
+        width: 0;
+        max-width: max-content;
+        overflow: hidden;
+        height: inherit;
+        word-break: break-all;
+        border-right: .1em solid black;
+        animation:
+            caret 0.75s step-end infinite,
+            type 3s linear infinite alternate,
+            multiline 18s steps(3) infinite;
+    }
+
+    .type>span>span:nth-child(2),
+    .type>span>span:nth-child(3) {
+        display: unset;
+    }
+
+    .type>span>span:before {
+        content: " ";
+        display: inline-block;
+    }
+
+    @keyframes caret {
+
+        from,
+        to {
+            border-color: transparent
+        }
+
+        50% {
+            border-color: black;
+        }
+    }
+
+    @keyframes type {
+
+        90%,
+        100% {
+            width: 100%
+        }
+    }
+
+    @keyframes multiline {
+        100% {
+            transform: translateY(-300%)
+        }
+    }
+}
+
+/* MISSING ICONS */
+.fa-orcid::before {
+    background-repeat: no-repeat;
+    background-position: center;
+    content: "\f05a";
+    color: transparent;
+    background-image: url('data:image/svg+xml;charset=UTF-8,<svg style="color: white" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.1.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M294.75 188.19h-45.92V342h47.47c67.62 0 83.12-51.34 83.12-76.91 0-41.64-26.54-76.9-84.67-76.9zM256 8C119 8 8 119 8 256s111 248 248 248 248-111 248-248S393 8 256 8zm-80.79 360.76h-29.84v-207.5h29.84zm-14.92-231.14a19.57 19.57 0 1 1 19.57-19.57 19.64 19.64 0 0 1-19.57 19.57zM300 369h-81V161.26h80.6c76.73 0 110.44 54.83 110.44 103.85C410 318.39 368.38 369 300 369z" fill="white"></path></svg>');
+}
+
+/* CUSTOM FIXES */
+@media screen and (max-width: 736px) {
+    header {
+        margin: 0 !important;
+    }
+}
+
+@media screen and (min-width: 737px) {
+    #main {
+        width: 45em;
+        background: #ffffff;
+        box-shadow: 0px 7px 10px 0px rgba(0, 0, 0, 0.1);
+    }
+
+    #nav a.icon:before {
+        filter: drop-shadow(0px 7px 10px rgba(0, 0, 0, 0.1));
+    }
+}
+
+#nav {
+    padding-top: 7px;
+}
+
+strong {
+    font-weight: bold;
+}
+
+h3 {
+    margin-top: 2rem;
+    margin-bottom: 0.5rem;
+}
+
+blockquote {
+    margin-bottom: 0;
+}
+
+blockquote>p {
+    margin-bottom: 0;
+}
+
+header>p {
+    color: inherit;
+}
+
+#footer>ul>.copyright {
+    font-family: monospace;
+}
+
+#footer>ul>.privacy {
+    font-family: sans;
+}
+
+#footer>ul>.design {
+    font-family: ITC Zapf Chancery, Tex Gyre Chorus, Monotype Corsiva, system-ui;
+}
+
+#footer>ul>.design>a {
+    font-family: initial;
+}
+
+#footer>ul>li {
+    display: inline-block;
+    margin: 10px;
+}
+
+#wrapper.react {
+    width: 100%;
+    max-width: 100em;
+    opacity: 1;
+}
+
+#wrapper.react>#main{
+    width: 100%;
+    position: inherit;
+}
+
+#wrapper.react>#main>.panel{
+    width: 100%;
+    position: inherit;
+}
+
+@media screen and (max-width: 736px) {
+    #nav a {
+        margin: 0;
+    }
+
+    #me header>h1 {
+        font-size: 2em;
+    }
+    
+    #footer {
+        padding: 0;
+    }
+
+    #footer ul {
+        margin-bottom: 0;
+    }
+}
+
+@media screen and (min-width: 737px) {
+    #wrapper.tall {
+        padding-bottom: 0;
+    }
+
+    body.react-body {
+        min-width: unset;
+    }
+}

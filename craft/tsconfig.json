@@ -1,0 +1,22 @@
+{
+    "compilerOptions": {
+        "outDir": "build",
+        "sourceMap": true,
+        "noImplicitAny": true,
+        "moduleResolution": "node",
+        "esModuleInterop": true,
+        "allowSyntheticDefaultImports": true,
+        "lib": [
+            "dom",
+            "dom.iterable",
+            "esnext"
+        ],
+        "jsx": "react-jsx",
+        "target": "es2015",
+        "downlevelIteration": true,
+    },
+    "include": [
+        "index.js",
+        "src/index.tsx"
+    ]
+}

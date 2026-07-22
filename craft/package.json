@@ -1,0 +1,26 @@
+{
+  "dependencies": {
+    "babel-loader": "^10.0.0",
+    "css-loader": "^7.1.2",
+    "pitchy": "^4.1.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "style-loader": "^4.0.0",
+    "styled-components": "^6.1.19",
+    "tone": "^15.1.22",
+    "ts-loader": "^9.5.2",
+    "webpack": "^5.99.9",
+    "webpack-cli": "^6.0.1",
+    "webpack-dev-server": "^5.2.2"
+  },
+  "scripts": {
+    "build": "webpack --mode production"
+  },
+  "devDependencies": {
+    "@babel/preset-react": "^7.28.5",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@types/styled-components": "^5.1.36",
+    "@types/webmidi": "^3.0.1"
+  }
+}

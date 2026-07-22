@@ -1,0 +1,36 @@
+title: Homepage
+description: Welcome to my personal website!
+baseurl: "" 
+url: "https://ger-me.de"
+
+collections:
+  pages:
+    output: true
+
+socials:
+  Headphones:
+    username: "Craft"
+    link: /craft.html
+  Envelope:
+    username: "Encrypted"
+    link: https://keys.openpgp.org/vks/v1/by-fingerprint/B28514717C0C483A57BB0B562AA59B86883D20DC
+  GitHub: 
+    username: "GitHub"
+    link: https://www.github.com/germede
+  Paper-Plane:
+    username: "Telegram"
+    link: https://t.me/germede
+  YouTube-Play:
+    username: "YouTube"
+    link: https://www.youtube.com/@germede
+
+google_analytics_id:
+google_analytics_domain:
+
+theme: 
+plugins:
+  - jekyll-feed
+  - jekyll-seo-tag
+
+exclude:
+  - craft/node_modules

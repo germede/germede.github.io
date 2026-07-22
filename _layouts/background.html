@@ -1,0 +1,27 @@
+<!DOCTYPE HTML>
+
+<html lang="en">
+
+{% include head.html %}
+
+<body class="is-preload">
+	<div id="wrapper">
+
+		{% include nav.html %}
+
+		<div id="main">
+
+			<article id="{{ page.title }}" class="panel">
+				<header>
+					<h2>{{ page.title }}</h2>
+				</header>
+				{{ page.content }}
+			</article>
+
+		</div>
+	</div>
+	{% include footer.html %}
+	{% include js.html %}
+</body>
+
+</html>

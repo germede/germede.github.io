@@ -1,0 +1,595 @@
+import { FC, ReactNode, useMemo, useState, useEffect } from "react";
+import * as Tone from "tone";
+import { COLORS } from "../ui/colors";
+import { ActionButton } from "../ui/styles";
+import { xy } from "../ui/geometry";
+import {
+  KEYS,
+  MODES,
+  SOLF_BASE,
+  HARMONIC_MINOR_PATTERN,
+  MELODIC_MINOR_PATTERN,
+  DIATONIC_DEGREE_NAMES,
+} from "../theory/constants";
+import { buildScale, qualities, romanFor } from "../theory/scale";
+import { KEY_ORDER } from "../theory/keyboard";
+import { enhEq, idx } from "../theory/pitch";
+import { Ring, Segment } from "./Ring";
+import { Piano } from "./Piano";
+import { Staff } from "./Staff";
+import { useSynth, ascend } from "../hooks/useSynth";
+import { useMidi } from "../hooks/useMidi";
+
+export interface CircleOfFifthsSelection {
+  tonic: string;
+  mode: string;
+  minorType?: "natural" | "harmonic" | "melodic";
+  keyIndex: number;
+  modeIndex: number;
+  accidentals: number;
+  scale: string[];
+}
+
+interface Props {
+  size?: number;
+  onSelect?: (s: CircleOfFifthsSelection) => void;
+}
+
+const NO_SELECT: React.CSSProperties = {
+  userSelect: "none",
+  WebkitUserSelect: "none",
+  MozUserSelect: "none",
+  msUserSelect: "none",
+};
+
+export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect }) => {
+  const cx = size / 2,
+    cy = size / 2,
+    r = (p: number) => p * (size / 2);
+  const RAD = {
+    centre: 0.3,
+    keyIn: 0.3,
+    keyOut: 0.5,
+    romanIn: 0.5,
+    romanOut: 0.7,
+    modeIn: 0.7,
+    modeOut: 0.9,
+    aeolianR1: 0.7,
+    aeolianR2: 0.766,
+    aeolianR3: 0.833,
+    aeolianR4: 0.9,
+    catIn: 0.9,
+    catOut: 0.95,
+  };
+  const SEG = 360 / 12,
+    HALF = SEG / 2;
+
+  const [keyIdx, setKeyIdx] = useState(0);
+  const [modeIdx, setModeIdx] = useState(1);
+  const [minorType, setMinorType] = useState<
+    "natural" | "harmonic" | "melodic"
+  >("natural");
+  const [degIdx, setDegIdx] = useState(0);
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const [solf, setSolf] = useState(false);
+  const [keyboardEnabled, setKeyboardEnabled] = useState(false);
+  const [midiEnabled, setMidiEnabled] = useState(false);
+
+  const {
+    playSingle,
+    playTriad,
+    playScale,
+    playingScale,
+    ensureAudio,
+    audioReady,
+  } = useSynth();
+  const { lit: midiLit, midiReady } = useMidi(
+    playSingle,
+    keyboardEnabled,
+    midiEnabled,
+  );
+
+  const pattern = useMemo(() => {
+    if (modeIdx === 4) {
+      // Aeolian
+      if (minorType === "harmonic") return HARMONIC_MINOR_PATTERN;
+      if (minorType === "melodic") return MELODIC_MINOR_PATTERN;
+    }
+    return MODES[modeIdx].pattern;
+  }, [modeIdx, minorType]);
+
+  const scale = useMemo(
+    () => buildScale(KEYS[keyIdx].tonic, pattern),
+    [keyIdx, pattern],
+  );
+  const quals = useMemo(() => qualities(scale), [scale]);
+
+  const show = (note: string) =>
+    solf
+      ? (SOLF_BASE[note[0] as keyof typeof SOLF_BASE] ?? note) + note.slice(1)
+      : note;
+
+  const acc = useMemo(() => {
+    const rel = (keyIdx + 1 - modeIdx + 12) % 12;
+    return KEYS[rel].acc;
+  }, [keyIdx, modeIdx]);
+
+  const ascNotes = useMemo(
+    () => ascend([...scale, scale[0]]), // reuse helper from hook (export it)
+    [scale],
+  );
+
+  const scaleLit = useMemo(() => {
+    const res: number[] = [];
+    let last = KEY_ORDER.findIndex((k) => enhEq(k, scale[0]));
+    res.push(last);
+    for (let i = 1; i < scale.length; i++) {
+      const next = KEY_ORDER.findIndex(
+        (k, idx) => idx > last && enhEq(k, scale[i]),
+      );
+      if (next >= 0) {
+        res.push(next);
+        last = next;
+      }
+    }
+    const oct = KEY_ORDER.findIndex(
+      (k, idx) => idx > last && enhEq(k, scale[0]),
+    );
+    if (oct >= 0) res.push(oct);
+    return res;
+  }, [scale]);
+
+  const triads = useMemo(
+    () =>
+      [...Array(7)].map((_, d) => {
+        const root = scale[d],
+          third = scale[(d + 2) % 7],
+          fifth = scale[(d + 4) % 7];
+        const idxOf = (n: string) =>
+          KEY_ORDER.reduce<number[]>(
+            (a, k, i) => (enhEq(k, n) ? [...a, i] : a),
+            [],
+          );
+        for (const r of idxOf(root)) {
+          const t = idxOf(third).find((x) => x > r);
+          const f = idxOf(fifth).find((x) => x! > (t ?? 99));
+          if (t !== undefined && f !== undefined) return [r, t, f];
+        }
+        return [];
+      }),
+    [scale],
+  );
+
+  /* notify parent */
+  useEffect(() => {
+    onSelect?.({
+      tonic: KEYS[keyIdx].tonic,
+      mode: MODES[modeIdx].name,
+      minorType: modeIdx === 4 ? minorType : undefined,
+      keyIndex: keyIdx,
+      modeIndex: modeIdx,
+      accidentals: acc,
+      scale,
+    });
+    setDegIdx(0);
+  }, [keyIdx, modeIdx, acc, scale, onSelect, minorType]);
+
+  /* ---------- ring builders ---------- */
+  const keySegs = useMemo<Segment[]>(
+    () =>
+      KEYS.map((k, i) => {
+        const start = i * SEG - HALF,
+          end = i * SEG + HALF,
+          mid = i * SEG;
+        const isSel = i === keyIdx;
+        const inScale = scale.some((n) => enhEq(n, k.tonic));
+        const fill = isSel
+          ? COLORS.active
+          : i === hoverIdx
+          ? COLORS.hover
+          : inScale
+          ? COLORS.idle
+          : COLORS.dimmed;
+        const pos = xy(cx, cy, (r(RAD.keyIn) + r(RAD.keyOut)) / 2, mid);
+        return {
+          start,
+          end,
+          mid,
+          key: i,
+          fill,
+          onClick: () => setKeyIdx(i),
+          onEnter: () => setHoverIdx(i),
+          onLeave: () => setHoverIdx(null),
+          label: (
+            <text
+              x={pos.x}
+              y={pos.y}
+              textAnchor="middle"
+              dominantBaseline="middle"
+              fill={COLORS.text}
+              style={{
+                fontSize: 18,
+                fontWeight: 600,
+                pointerEvents: "none",
+                ...NO_SELECT,
+              }}
+            >
+              {show(k.tonic)}
+            </text>
+          ),
+        };
+      }),
+    [hoverIdx, keyIdx, scale, solf, cx, cy],
+  );
+
+  const modeSegs = useMemo<Segment[]>(() => {
+    const startOuter = (keyIdx - modeIdx + 12) % 12;
+    return [...Array(7)].map((_, i) => {
+      const outer = (startOuter + i) % 12;
+      const start = outer * SEG - HALF,
+        end = start + SEG,
+        mid = (start + end) / 2;
+      const fill =
+        i === modeIdx
+          ? COLORS.active
+          : i + 100 === hoverIdx
+          ? COLORS.hover
+          : COLORS.idle;
+      const pos = xy(cx, cy, (r(RAD.modeIn) + r(RAD.modeOut)) / 2, mid);
+      return {
+        start,
+        end,
+        mid,
+        key: "m" + i,
+        fill,
+        onClick: () => setModeIdx(i),
+        onEnter: () => setHoverIdx(i + 100),
+        onLeave: () => setHoverIdx(null),
+        label: (
+          <text
+            x={pos.x}
+            y={pos.y}
+            textAnchor="middle"
+            dominantBaseline="middle"
+            fill={COLORS.text}
+            transform={`rotate(${mid} ${pos.x} ${pos.y})`}
+            style={{ pointerEvents: "none", ...NO_SELECT }}
+          >
+            <tspan fontSize={15} fontWeight={700}>
+              {MODES[i].name}
+            </tspan>
+          </text>
+        ),
+      };
+    });
+  }, [keyIdx, modeIdx, hoverIdx, cx, cy]);
+
+  const romanSegs = useMemo<Segment[]>(
+    () =>
+      modeSegs.map((m, i) => {
+        const pos = xy(cx, cy, (r(RAD.romanIn) + r(RAD.romanOut)) / 2, m.mid);
+        const relDeg = (MODES[i].degree - MODES[modeIdx].degree + 7) % 7;
+        const roman = romanFor(relDeg, quals[relDeg]);
+        const fill =
+          relDeg === degIdx
+            ? COLORS.active
+            : i + 1000 === hoverIdx
+              ? COLORS.hover
+              : COLORS.idle;
+        return {
+          ...m,
+          key: "r" + i,
+          fill,
+          onClick: () => {
+            setDegIdx(relDeg);
+            playTriad(relDeg, scale);
+          },
+          onEnter: () => setHoverIdx(i + 1000),
+          onLeave: () => setHoverIdx(null),
+          label: (
+            <text
+              x={pos.x}
+              y={pos.y}
+              textAnchor="middle"
+              dominantBaseline="middle"
+              fill={COLORS.text}
+              transform={`rotate(${m.mid} ${pos.x} ${pos.y})`}
+              style={{ pointerEvents: "none", ...NO_SELECT }}
+            >
+              <tspan fontSize={24} fontWeight={700}>
+                {roman}
+              </tspan>
+              <tspan x={pos.x} dy="2.2em" fontSize={9}>
+                {(() => {
+                  let degreeName = DIATONIC_DEGREE_NAMES[relDeg];
+                  if (relDeg === 6) { // 7th degree
+                    const tonicPc = idx(scale[0]);
+                    const seventhPc = idx(scale[6]);
+                    if ((tonicPc - seventhPc + 12) % 12 === 1) { // Half step below tonic
+                      degreeName = "Leading tone";
+                    }
+                  }
+                  return degreeName;
+                })()}
+              </tspan>
+            </text>
+          ),
+        };
+      }),
+    [modeSegs, modeIdx, quals, degIdx, hoverIdx, scale, playTriad],
+  );
+
+  const catSegs = useMemo<Segment[]>(() => {
+    const groups = [
+      { label: "MAJOR", start: 0, count: 3 },
+      { label: "Minor", start: 3, count: 3 },
+      { label: "dim.", start: 6, count: 1 },
+    ] as const;
+    return groups.map((g) => {
+      const first = romanSegs[g.start],
+        last = romanSegs[g.start + g.count - 1];
+      const start = first.start;
+      let end = last.end;
+      if (end < start) end += 360;
+      const mid = (start + end) / 2;
+      const pos = xy(cx, cy, (r(RAD.catIn) + r(RAD.catOut) - 3) / 2, mid);
+      return {
+        start,
+        end,
+        mid,
+        key: "c" + g.label,
+        fill: COLORS.inactive,
+        label: (
+          <text
+            x={pos.x}
+            y={pos.y}
+            textAnchor="middle"
+            dominantBaseline="middle"
+            transform={`rotate(${mid} ${pos.x} ${pos.y})`}
+            fill={COLORS.stroke}
+            style={{ fontSize: 12, ...NO_SELECT }}
+          >
+            {g.label}
+          </text>
+        ),
+      };
+    });
+  }, [romanSegs, cx, cy]);
+
+  /* staff layout */
+  const staffGap = size * 0.0085,
+    staffW = size * 0.2;
+  const staffLeft = cx - staffW / 2;
+  const staffY0Treble = cy - 2 * staffGap,
+    staffY0Bass = cy + 5 * staffGap;
+  const pianoH = size / 3;
+
+  const startOuter = (keyIdx - modeIdx + 12) % 12;
+  const outer = (startOuter + 4) % 12; // 4 is Aeolian's index in MODES
+  const start = outer * SEG - HALF,
+    end = start + SEG,
+    mid = (start + end) / 2;
+
+  const types: ("natural" | "harmonic" | "melodic")[] = [
+    "natural",
+    "harmonic",
+    "melodic",
+  ];
+  const radii = [RAD.aeolianR1, RAD.aeolianR2, RAD.aeolianR3, RAD.aeolianR4];
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexWrap: "wrap",
+        columnGap: 24,
+        alignItems: "center",
+      }}
+    >
+      <div style={{ flex: "1 1 500px" }}>
+        <div style={{ textAlign: "center", color: COLORS.text }}>
+          <svg viewBox={`0 0 ${size} ${size}`}>
+            <Ring
+              outerR={r(RAD.catOut)}
+              innerR={r(RAD.catIn)}
+              cx={cx}
+              cy={cy}
+              segments={catSegs}
+            />
+            <Ring
+              outerR={r(RAD.modeOut)}
+              innerR={r(RAD.modeIn)}
+              cx={cx}
+              cy={cy}
+              segments={modeSegs}
+            />
+            {modeIdx === 4 &&
+              types.map((type, i) => {
+                const r1 = r(radii[i]);
+                const r2 = r(radii[i + 1]);
+                const pos = xy(cx, cy+2, (r1 + r2) / 2, mid);
+                return (
+                  <Ring
+                    key={"minor" + i}
+                    outerR={r2}
+                    innerR={r1}
+                    cx={cx}
+                    cy={cy}
+                    segments={[
+                      {
+                        start,
+                        end,
+                        mid,
+                        key: "minor" + i,
+                        fill:
+                          type === minorType
+                            ? COLORS.active
+                            : i + 200 === hoverIdx
+                            ? COLORS.hover
+                            : COLORS.idle,
+                        onClick: () => {
+                          setMinorType(type);
+                          setModeIdx(4);
+                        },
+                        onEnter: () => setHoverIdx(i + 200),
+                        onLeave: () => setHoverIdx(null),
+                        label: (
+                          <text
+                            x={pos.x}
+                            y={pos.y}
+                            textAnchor="middle"
+                            dominantBaseline="middle"
+                            fill={COLORS.text}
+                            transform={`rotate(${mid} ${pos.x} ${pos.y})`}
+                            style={{ pointerEvents: "none", ...NO_SELECT }}
+                          >
+                            <tspan fontSize={12} fontWeight={700}>
+                              {type.charAt(0).toUpperCase() + type.slice(1)}
+                            </tspan>
+                          </text>
+                        ),
+                      },
+                    ]}
+                  />
+                );
+              })}
+            <Ring
+              outerR={r(RAD.romanOut)}
+              innerR={r(RAD.romanIn)}
+              cx={cx}
+              cy={cy}
+              segments={romanSegs}
+            />
+            <Ring
+              outerR={r(RAD.keyOut)}
+              innerR={r(RAD.keyIn)}
+              cx={cx}
+              cy={cy}
+              segments={keySegs}
+            />
+            <circle cx={cx} cy={cy} r={r(RAD.centre)} fill={COLORS.text} />
+            <text
+              x={cx}
+              y={cy - r(RAD.centre) * 0.45}
+              textAnchor="middle"
+              dominantBaseline="middle"
+              style={{ fontSize: size * 0.06, fontWeight: 700, ...NO_SELECT }}
+              fill={COLORS.stroke}
+            >
+              {show(scale[degIdx])}
+              {quals[degIdx]}
+            </text>
+            <Staff
+              left={staffLeft}
+              gap={staffGap}
+              width={staffW}
+              y0Treble={staffY0Treble}
+              y0Bass={staffY0Bass}
+              accidentals={acc}
+            />
+            <foreignObject
+              x={cx - r(RAD.centre) / 2}
+              y={cy + r(RAD.centre) / 2}
+              width={r(RAD.centre)}
+              height={r(RAD.centre) / 3}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "center",
+                  pointerEvents: "auto",
+                }}
+              >
+                <label
+                  style={{
+                    ...NO_SELECT,
+                    fontSize: 12,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4,
+                    color: COLORS.stroke,
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={solf}
+                    onChange={(e) => setSolf(e.target.checked)}
+                  />{" "}
+                  Solfège?
+                </label>
+              </div>
+            </foreignObject>
+          </svg>
+        </div>
+      </div>
+
+      <div style={{ flex: "1 1 500px" }}>
+        <h4 style={{ marginTop: 24, ...NO_SELECT }}>Scale 🪜</h4>
+        <div
+          style={{ display: "flex", gap: 7, flexWrap: "wrap", marginBottom: 7 }}
+        >
+          <button
+            onClick={() => playScale(ascNotes)}
+            disabled={playingScale}
+            style={{ background: playingScale ? COLORS.active : undefined }}
+          >
+            {playingScale ? "Playing…" : "Play"}
+          </button>
+        </div>
+        <Piano lit={scaleLit} playNote={() => {}} h={pianoH} />
+        <h4 style={{ marginTop: 24, ...NO_SELECT }}>Chord 🎶</h4>
+        <div
+          style={{ display: "flex", gap: 7, flexWrap: "wrap", marginBottom: 7 }}
+        >
+          {[...Array(7)].map((_, d) => {
+            const active = d === degIdx;
+            return (
+              <ActionButton
+                key={d}
+                onClick={() => {
+                  setDegIdx(d);
+                  playTriad(d, scale);
+                }}
+                style={{
+                  background: active ? COLORS.active : undefined,
+                  color: active ? COLORS.text : undefined,
+                }}
+              >
+                {romanFor(d, quals[d])}: {show(scale[d])}
+                {quals[d]}
+              </ActionButton>
+            );
+          })}
+        </div>
+        <Piano lit={triads[degIdx]} playNote={() => {}} h={pianoH} />
+        <h4 style={{ marginTop: 24, ...NO_SELECT }}>Input 🎹</h4>
+        <div
+          style={{ display: "flex", gap: 7, flexWrap: "wrap", marginBottom: 7 }}
+        >
+          <ActionButton
+            onClick={() => setMidiEnabled(!midiEnabled)}
+            style={{
+              background: midiReady ? COLORS.active : undefined,
+            }}
+          >
+            MIDI
+          </ActionButton>
+          <ActionButton
+            onClick={() => setKeyboardEnabled(!keyboardEnabled)}
+            style={{
+              background: keyboardEnabled ? COLORS.active : undefined,
+            }}
+          >
+            Keyboard
+          </ActionButton>
+        </div>
+        <Piano
+          lit={Array.from(midiLit)}
+          playNote={playSingle}
+          h={pianoH}
+          interactive
+        />
+      </div>
+    </div>
+  );
+};

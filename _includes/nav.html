@@ -1,0 +1,28 @@
+<nav id="nav">
+    {% if page.url == '/' %}
+    
+    <a href="#me" class="icon solid fa-home active"
+        aria-label="Home">
+        <!-- <span>Home</span> -->
+    </a>
+
+    {% for page in site.pages %}
+    {% if page.show %}
+    <a href="#{{ page.title }}" class="icon solid fa-{{ page.icon }}" aria-label="Home"><span>{{ page.title
+            }}</span></a>
+    {% endif %}
+    {% endfor %}
+
+    {% for social_info in site.socials %}
+    {% if social_info[1].username %}
+    <a href="{{ social_info[1].link }}" class="icon solid fa-{{ social_info[0] | downcase }}"
+        aria-label="{{ social_info[0] }}"><span>{{ social_info[1].username }}</span></a>
+    {% endif %}
+    {% endfor %}
+
+    {% else %}
+
+    <a href="/" class="icon solid fa-home" aria-label="Home"><span>Home</span></a>
+
+    {% endif %}
+</nav>
