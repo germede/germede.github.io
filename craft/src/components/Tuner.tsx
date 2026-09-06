@@ -39,31 +39,25 @@ export const Tuner: React.FC = () => {
       >
         {isListening ? "Stop" : "Start"}
       </button>
-      {isListening && (
-        <>
-          <Row>
-            <Col>
-              <div>{isListening ? note.name : "Disabled"}</div>
-              <div>{isListening ? `${note.frequency.toFixed(2)}` : "?"} Hz</div>
-            </Col>
-          </Row>
-          <Slider
-            type="range"
-            min={-50}
-            max={50}
-            value={detune}
-            disabled
-            style={{ width: "100%" }}
-          />
-          {frequencyData && audioContext && (
-            <FrequencySpectrum
-              frequencyData={frequencyData}
-              audioContext={audioContext}
-              maxFrequency={maxFrequency}
-            />
-          )}
-        </>
-      )}
+      <Row>
+        <Col>
+          <div>{note.name}</div>
+          <div>{`${note.frequency.toFixed(2)}`} Hz</div>
+        </Col>
+      </Row>
+      <Slider
+        type="range"
+        min={-50}
+        max={50}
+        value={detune}
+        disabled
+        style={{ width: "100%" }}
+      />
+      <FrequencySpectrum
+        frequencyData={frequencyData}
+        audioContext={audioContext}
+        maxFrequency={maxFrequency}
+      />
     </ComponentContainer>
   );
 };

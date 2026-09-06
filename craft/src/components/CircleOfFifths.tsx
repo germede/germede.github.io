@@ -10,9 +10,8 @@ import {
   MELODIC_MINOR_PATTERN,
   DIATONIC_DEGREE_NAMES,
 } from "../theory/constants";
-import { buildScale, qualities, romanFor } from "../theory/scale";
+import { buildScale, qualities, romanFor, idx, enhEq } from "../theory/pitch";
 import { KEY_ORDER, PIANO_START_MIDI } from "../theory/keyboard";
-import { enhEq, idx } from "../theory/pitch";
 import { Ring, Segment } from "./Ring";
 import { Piano } from "./Piano";
 import { Staff } from "./Staff";

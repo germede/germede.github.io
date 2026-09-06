@@ -3,8 +3,8 @@ import React, { useRef, useEffect, useState, useLayoutEffect } from 'react';
 import { COLORS } from '../ui/colors';
 
 interface FrequencySpectrumProps {
-  frequencyData: Uint8Array;
-  audioContext: AudioContext;
+  frequencyData?: Uint8Array;
+  audioContext?: AudioContext | null;
   maxFrequency: number;
 }
 
@@ -26,7 +26,7 @@ const FrequencySpectrum: React.FC<FrequencySpectrumProps> = ({ frequencyData, au
   }, []);
 
   useEffect(() => {
-    if (canvasRef.current && frequencyData.length > 0 && audioContext && size.width > 0) {
+    if (canvasRef.current && size.width > 0) {
       const canvas = canvasRef.current;
       const context = canvas.getContext('2d');
       if (context) {
@@ -74,20 +74,25 @@ const FrequencySpectrum: React.FC<FrequencySpectrumProps> = ({ frequencyData, au
 
 
         // Draw spectrum bars
-        const nyquist = audioContext.sampleRate / 2;
-        const maxBin = Math.floor(maxFrequency / nyquist * frequencyData.length);
-        const barWidth = (width - 2 * padding) / maxBin;
-        context.fillStyle = COLORS.idle;
-        for (let i = 0; i < maxBin; i++) {
-          const value = frequencyData[i];
-          const barHeight = (value / 255) * (height - 2 * padding);
-          context.fillRect(padding + i * barWidth, height - padding - barHeight, barWidth, barHeight);
+        if (frequencyData && audioContext && frequencyData.length > 0) {
+          const nyquist = audioContext.sampleRate / 2;
+          const maxBin = Math.min(
+            frequencyData.length,
+            Math.floor(maxFrequency / nyquist * frequencyData.length),
+          );
+          const barWidth = (width - 2 * padding) / Math.max(maxBin, 1);
+          context.fillStyle = COLORS.idle;
+          for (let i = 0; i < maxBin; i++) {
+            const value = frequencyData[i];
+            const barHeight = (value / 255) * (height - 2 * padding);
+            context.fillRect(padding + i * barWidth, height - padding - barHeight, barWidth, barHeight);
+          }
         }
       }
     }
   }, [frequencyData, audioContext, maxFrequency, size]);
 
-  return <div ref={containerRef} style={{ width: '100%', height: '300px' }}><canvas ref={canvasRef} width={size.width} height={size.height} /></div>;
+  return <div ref={containerRef} style={{ width: '100%', height: '200px' }}><canvas ref={canvasRef} width={size.width} height={size.height} /></div>;
 };
 
 export default FrequencySpectrum;
