@@ -17,7 +17,7 @@ export function Craft() {
       <CircleOfFifths onSelect={setSel} metronomeBpm={metronome.state.bpm} />
       <div style={{ display: "flex", flexWrap: "wrap", columnGap: 24 }}>
         <div style={{ flex: "1 1 500px" }}>
-          <h3 id="metronome">Metronome 🕰️</h3>
+          <h3 id="metronome">Metronome ⏱️</h3>
           <Metronome controls={metronome} />
         </div>
         <div style={{ flex: "1 1 500px" }}>
