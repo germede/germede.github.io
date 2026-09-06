@@ -46,6 +46,10 @@ export const useMetronome = (initialBpm = 120, initialBeats = 4): MetronomeContr
 
     const start = useCallback(async () => {
         await ensureAudio();
+        loopRef.current?.dispose();
+        loopRef.current = null;
+        Tone.Transport.stop();
+        Tone.Transport.position = 0;
         Tone.Transport.bpm.value = bpm;
         countRef.current = 0;
         loopRef.current = new Tone.Loop((time) => {

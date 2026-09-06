@@ -1,4 +1,4 @@
-import { FC, ReactNode, useMemo, useState, useEffect, useCallback } from "react";
+import { FC, ReactNode, memo, useMemo, useState, useEffect, useCallback } from "react";
 import { COLORS } from "../ui/colors";
 import { ActionButton } from "../ui/styles";
 import { xy } from "../ui/geometry";
@@ -65,7 +65,7 @@ const chordSuffixFor = (scale: string[], degree: number, seventh: boolean) => {
   return "7";
 };
 
-export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect, metronomeBpm = 120 }) => {
+export const CircleOfFifths: FC<Props> = memo(({ size = 600, onSelect, metronomeBpm = 120 }) => {
   const cx = size / 2,
     cy = size / 2,
     r = (p: number) => p * (size / 2);
@@ -100,12 +100,17 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect, metronomeBpm =
   const [inversion, setInversion] = useState(0);
   const [progression, setProgression] = useState<ProgressionChord[]>([]);
   const [loopProgression, setLoopProgression] = useState(false);
+  const [progressionBpm, setProgressionBpm] = useState(metronomeBpm);
   const [keyboardEnabled, setKeyboardEnabled] = useState(false);
   const [midiEnabled, setMidiEnabled] = useState(false);
 
   useEffect(() => {
     if (!seventhChords && inversion > 2) setInversion(0);
   }, [seventhChords, inversion]);
+
+  useEffect(() => {
+    if (!loopProgression) setProgressionBpm(metronomeBpm);
+  }, [metronomeBpm, loopProgression]);
 
     const {
       playSingle: playInputNote,
@@ -211,7 +216,7 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect, metronomeBpm =
     chordLabel(chord.scale, chord.degree, chord.inversion, chord.seventh);
 
   const progressionSequence = useMemo(() => {
-    const beatDuration = 60 / metronomeBpm;
+    const beatDuration = 60 / progressionBpm;
     const chordDuration = beatDuration * 4;
     const notes = progression.flatMap((chord, chordIndex) => {
       const chordNames = [
@@ -235,7 +240,7 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect, metronomeBpm =
     return {
       notes,
       totalTime: progression.length * chordDuration,
-      tempos: [{ qpm: metronomeBpm, time: 0 }],
+      tempos: [{ qpm: progressionBpm, time: 0 }],
       timeSignatures: [{ time: 0, numerator: 4, denominator: 4 }],
       keySignatures: [{
         key: idx(KEYS[(keyIdx + 1 - modeIdx + 12) % 12].tonic),
@@ -243,7 +248,7 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect, metronomeBpm =
         time: 0,
       }],
     };
-  }, [progression, doubling, metronomeBpm, program, keyIdx, modeIdx]);
+  }, [progression, doubling, progressionBpm, program, keyIdx, modeIdx]);
 
   const addProgressionChord = useCallback(() => {
     if (progression.length >= 8) return;
@@ -723,7 +728,10 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect, metronomeBpm =
             -
           </ActionButton>
           <ActionButton
-            onClick={() => setLoopProgression((looping) => !looping)}
+            onClick={() => {
+              setProgressionBpm(metronomeBpm);
+              setLoopProgression((looping) => !looping);
+            }}
             disabled={progression.length === 0}
             style={{
               background: loopProgression ? COLORS.active : undefined,
@@ -807,4 +815,4 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect, metronomeBpm =
       </div>
     </div>
   );
-};
+});
