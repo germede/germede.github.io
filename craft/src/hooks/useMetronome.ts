@@ -25,45 +25,38 @@ export interface MetronomeControls {
 export const useMetronome = (initialBpm = 120, initialBeats = 4): MetronomeControls => {
     const [bpm, setBpm] = useState(initialBpm);
     const [beats, setBeats] = useState(initialBeats);
-    const [subdivisions, setSubdivisions] = useState(1);
+    const [subdivisions, setSubdivisions] = useState(4);
     const [running, setRun] = useState(false);
     const [activeBeat, setActiveBeat] = useState(-1);
     const [activeSubdivision, setActiveSubdivision] = useState(-1);
     const [tempoLabel, setTempoLabel] = useState(() => getTempoLabel(initialBpm));
 
-    const synthRef = useRef<Tone.Synth | null>(null);
     const loopRef = useRef<Tone.Loop | null>(null);
     const tapHistory = useRef<number[]>([]);
     const beatsRef = useRef(beats);
     const subdivisionsRef = useRef(subdivisions);
+    const countRef = useRef(0);
 
     useEffect(() => { beatsRef.current = beats; }, [beats]);
     useEffect(() => { subdivisionsRef.current = subdivisions; }, [subdivisions]);
 
     const ensureAudio = async () => {
         if (Tone.context.state !== 'running') await Tone.start();
-        if (!synthRef.current) {
-            synthRef.current = new Tone.Synth({
-                oscillator: { type: 'sine' },
-                envelope: { attack: 0.001, decay: 0.1, sustain: 0, release: 0.1 },
-                volume: -10,
-            }).toDestination();
-        }
     };
 
     const start = useCallback(async () => {
         await ensureAudio();
-        let count = 0;
+        Tone.Transport.bpm.value = bpm;
+        countRef.current = 0;
         loopRef.current = new Tone.Loop((time) => {
             const currentBeats = beatsRef.current;
             const currentSubdivisions = subdivisionsRef.current;
-            const beat = Math.floor(count / currentSubdivisions);
-            const subdivision = count % currentSubdivisions;
-            const note = subdivision === 0 ? (beat === 0 ? 'C6' : 'C5') : 'C4';
-            synthRef.current?.triggerAttackRelease(note, '8n', time);
+            const beat = Math.floor(countRef.current / currentSubdivisions);
+            const subdivision = countRef.current % currentSubdivisions;
             setActiveBeat(beat);
             setActiveSubdivision(subdivision);
-            count = (count + 1) % (currentBeats * currentSubdivisions);
+            countRef.current =
+                (countRef.current + 1) % (currentBeats * currentSubdivisions);
         }, 60 / (bpm * subdivisions)).start(0);
         Tone.Transport.start();
         setRun(true);
@@ -79,13 +72,21 @@ export const useMetronome = (initialBpm = 120, initialBeats = 4): MetronomeContr
     }, []);
 
     useEffect(() => {
+        Tone.Transport.bpm.value = bpm;
         if (loopRef.current) loopRef.current.interval = 60 / (bpm * subdivisions);
         setTempoLabel(getTempoLabel(bpm));
     }, [bpm, subdivisions]);
 
+    useEffect(() => {
+        if (!loopRef.current) return;
+        countRef.current = 0;
+        Tone.Transport.position = 0;
+        setActiveBeat(-1);
+        setActiveSubdivision(-1);
+    }, [beats, subdivisions]);
+
     useEffect(() => () => {
         loopRef.current?.dispose();
-        synthRef.current?.dispose();
         Tone.Transport.stop();
     }, []);
 

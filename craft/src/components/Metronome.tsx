@@ -1,12 +1,12 @@
 import { FC } from "react";
 import { MetronomeControls } from "../hooks/useMetronome";
 import { COLORS } from "../ui/colors";
+import { DrumMachine } from "./DrumMachine";
 import {
   ComponentContainer,
   Row,
   Col,
   Slider,
-  Dot,
   ActionButton,
 } from "../ui/styles";
 
@@ -17,7 +17,7 @@ type Props = {
 export const Metronome: FC<Props> = ({
   controls,
 }) => {
-  const { state, setBpm, setBeats, setSubdivisions, start, stop, tap } =
+  const { state, setBpm, setBeats, setSubdivisions, tap } =
     controls;
 
   const {
@@ -83,40 +83,7 @@ export const Metronome: FC<Props> = ({
           <ActionButton onClick={tap}>Tap</ActionButton>
         </Col>
       </Row>
-      <button
-        onClick={isRunning ? stop : start}
-        style={{
-          background: isRunning ? COLORS.active : undefined,
-          width: "100%",
-        }}
-      >
-        {isRunning ? "Stop" : "Start"}
-      </button>
-      {isRunning && (
-        <Row>
-          <Col>
-            <div style={{ display: "flex", justifyContent: "space-around", width: "100%" }}>
-              {Array.from({ length: beats }).map((_, beatIndex) => (
-                <div
-                  key={beatIndex}
-                  style={{ display: "flex", flexDirection: "column", gap: "10px" }}
-                >
-                  {Array.from({ length: subdivisions }).map((_, subdivisionIndex) => (
-                    <Dot
-                      key={`${beatIndex}-${subdivisionIndex}`}
-                      isactive={
-                        beatIndex === activeBeat &&
-                        subdivisionIndex === activeSubdivision
-                      }
-                      isrunning={isRunning}
-                    />
-                  ))}
-                </div>
-              ))}
-            </div>
-          </Col>
-        </Row>
-      )}
+      <DrumMachine controls={controls} />
     </ComponentContainer>
   );
 };

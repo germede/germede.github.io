@@ -35,14 +35,6 @@ export const Slider = styled.input`
   flex: 1;
 `;
 
-export const Dot = styled.div<{ isactive?: boolean; isrunning?: boolean }>`
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: ${(props) =>
-    props.isactive ? COLORS.idle : COLORS.inactive};
-`;
-
 export const ActionButton = styled.button`
   width: auto;
   padding: 0.7em 1.5em;
