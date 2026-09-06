@@ -194,13 +194,13 @@ export const DrumMachine: FC<Props> = ({ controls }) => {
 
   return (
     <ComponentContainer>
-      <div style={{ width: "100%", overflowX: "auto" }}>
+      <div style={{ width: "100%" }}>
         <div
           style={{
-            minWidth: Math.max(620, 90 + steps * 32),
+            width: "100%",
             display: "grid",
-            gridTemplateColumns: `90px repeat(${steps}, minmax(28px, 1fr))`,
-            gap: 4,
+            gridTemplateColumns: `58px repeat(${steps}, minmax(0, 1fr))`,
+            gap: 3,
             alignItems: "center",
           }}
         >
@@ -234,7 +234,7 @@ export const DrumMachine: FC<Props> = ({ controls }) => {
                     onMouseEnter={() => setHoveredCell(cellKey)}
                     onMouseLeave={() => setHoveredCell(null)}
                     style={{
-                      minWidth: 28,
+                      minWidth: 0,
                       height: 28,
                       padding: 0,
                       border: active
