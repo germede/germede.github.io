@@ -54,6 +54,30 @@ export const ascendNotes = (notes: string[], startOct = BASE_OCT): AscendingNote
     return out;
 };
 
+export const invertNotes = (notes: AscendingNote[], inversion: number) => {
+    const amount = Math.min(Math.max(inversion, 0), Math.max(notes.length - 1, 0));
+    const rotated = [
+        ...notes.slice(amount),
+        ...notes.slice(0, amount),
+    ];
+    let previous = PIANO_START_MIDI - 1;
+
+    return rotated.map((note, index) => {
+        let pitch = note.pitch;
+        if (index === 0) {
+            while (pitch - 12 >= PIANO_START_MIDI) pitch -= 12;
+            while (pitch < PIANO_START_MIDI) pitch += 12;
+        } else {
+            while (pitch <= previous) pitch += 12;
+        }
+        previous = pitch;
+        return {
+            name: note.name.replace(/(-?\d+)$/, String(Math.floor(pitch / 12) - 1)),
+            pitch,
+        };
+    });
+};
+
 export const useSynth = () => {
     const elementRef = useRef<LivePlayer | null>(null);
     const readyRef = useRef<Promise<void> | null>(null);
@@ -120,17 +144,17 @@ export const useSynth = () => {
         window.setTimeout(() => playNoteUp(note), LIVE_NOTE_DURATION_MS);
     }, [playNoteDown, playNoteUp]);
 
-    const playTriad = useCallback(async (degree: number, scale: string[], includeSeventh = false) => {
+    const playTriad = useCallback(async (degree: number, scale: string[], includeSeventh = false, inversion = 0) => {
         await ensureAudio();
         await loadProgram(programRef.current);
-        const notes = ascend([
+        const notes = invertNotes(ascendNotes([
             scale[degree],
             scale[(degree + 2) % 7],
             scale[(degree + 4) % 7],
             ...(includeSeventh ? [scale[(degree + 6) % 7]] : []),
-        ]);
+        ]), inversion);
         const events = notes.map((note) => ({
-            pitch: Tone.Frequency(normalizeForTone(note)).toMidi(),
+            pitch: note.pitch,
             velocity: 100,
             program: programRef.current,
             isDrum: false,

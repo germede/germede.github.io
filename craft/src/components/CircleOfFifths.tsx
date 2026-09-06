@@ -11,12 +11,12 @@ import {
   DIATONIC_DEGREE_NAMES,
 } from "../theory/constants";
 import { buildScale, qualities, romanFor } from "../theory/scale";
-import { KEY_ORDER } from "../theory/keyboard";
+import { KEY_ORDER, PIANO_START_MIDI } from "../theory/keyboard";
 import { enhEq, idx } from "../theory/pitch";
 import { Ring, Segment } from "./Ring";
 import { Piano } from "./Piano";
 import { Staff } from "./Staff";
-import { ascend, ascendNotes, useSynth } from "../hooks/useSynth";
+import { ascend, ascendNotes, invertNotes, useSynth } from "../hooks/useSynth";
 import { useMidi } from "../hooks/useMidi";
 import { INSTRUMENTS } from "../ui/instruments";
 
@@ -73,8 +73,13 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect }) => {
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const [solf, setSolf] = useState(false);
   const [seventhChords, setSeventhChords] = useState(false);
+  const [inversion, setInversion] = useState(0);
   const [keyboardEnabled, setKeyboardEnabled] = useState(false);
   const [midiEnabled, setMidiEnabled] = useState(false);
+
+  useEffect(() => {
+    if (!seventhChords && inversion > 2) setInversion(0);
+  }, [seventhChords, inversion]);
 
     const {
       playSingle: playInputNote,
@@ -124,25 +129,18 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect }) => {
     () => ascendNotes([...scale, scale[0]]).map(({ pitch }) => pitch),
     [scale],
   );
-  const chordNotes = useMemo(
-    () =>
-      ascend([
-        scale[degIdx],
-        scale[(degIdx + 2) % 7],
-        scale[(degIdx + 4) % 7],
-        ...(seventhChords ? [scale[(degIdx + 6) % 7]] : []),
-      ]),
-    [degIdx, scale, seventhChords],
+  const chordVoiceNames = (degree: number) => [
+    scale[degree],
+    scale[(degree + 2) % 7],
+    scale[(degree + 4) % 7],
+    ...(seventhChords ? [scale[(degree + 6) % 7]] : []),
+  ];
+  const chordVoices = useMemo(
+    () => invertNotes(ascendNotes(chordVoiceNames(degIdx)), inversion),
+    [degIdx, scale, seventhChords, inversion],
   );
-  const chordPitches = useMemo(
-    () => ascendNotes([
-      scale[degIdx],
-      scale[(degIdx + 2) % 7],
-      scale[(degIdx + 4) % 7],
-      ...(seventhChords ? [scale[(degIdx + 6) % 7]] : []),
-    ]).map(({ pitch }) => pitch),
-    [degIdx, scale, seventhChords],
-  );
+  const chordNotes = useMemo(() => chordVoices.map(({ name }) => name), [chordVoices]);
+  const chordPitches = useMemo(() => chordVoices.map(({ pitch }) => pitch), [chordVoices]);
 
   const chordSuffix = (degree: number) => {
     if (!seventhChords) return quals[degree];
@@ -158,6 +156,13 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect }) => {
     return "7";
   };
 
+  const chordName = (degree: number) => {
+    const root = scale[degree];
+    const bass = invertNotes(ascendNotes(chordVoiceNames(degree)), inversion)[0].name
+      .replace(/-?\d+$/, "");
+    return `${show(root)}${chordSuffix(degree)}${idx(bass) === idx(root) ? "" : `/${show(bass)}`}`;
+  };
+
   const romanChord = (degree: number) => {
     if (!seventhChords) return romanFor(degree, quals[degree]);
     const suffix = chordSuffix(degree);
@@ -170,11 +175,11 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect }) => {
 
   const scaleLit = useMemo(() => {
     const res: number[] = [];
-    let last = KEY_ORDER.findIndex((k) => enhEq(k, scale[0]));
+    let last = KEY_ORDER.findIndex((key) => enhEq(key, scale[0]));
     res.push(last);
     for (let i = 1; i < scale.length; i++) {
       const next = KEY_ORDER.findIndex(
-        (k, idx) => idx > last && enhEq(k, scale[i]),
+        (key, index) => index > last && enhEq(key, scale[i]),
       );
       if (next >= 0) {
         res.push(next);
@@ -182,7 +187,7 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect }) => {
       }
     }
     const oct = KEY_ORDER.findIndex(
-      (k, idx) => idx > last && enhEq(k, scale[0]),
+      (key, index) => index > last && enhEq(key, scale[0]),
     );
     if (oct >= 0) res.push(oct);
     return res;
@@ -208,14 +213,9 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect }) => {
       }),
     [scale],
   );
-  const selectedChordKeys = useMemo(() => {
-    const root = triads[degIdx] ?? [];
-    if (!seventhChords) return root;
-    const seventh = KEY_ORDER.findIndex(
-      (key, index) => index > (root[0] ?? -1) && enhEq(key, scale[(degIdx + 6) % 7]),
-    );
-    return seventh >= 0 ? [...root, seventh] : root;
-  }, [triads, degIdx, seventhChords, scale]);
+  const selectedChordKeys = chordPitches
+    .map((pitch) => pitch - PIANO_START_MIDI)
+    .filter((index) => index >= 0 && index < KEY_ORDER.length);
 
   /* notify parent */
   useEffect(() => {
@@ -339,7 +339,7 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect }) => {
           fill,
           onClick: () => {
             setDegIdx(relDeg);
-            playTriad(relDeg, scale, seventhChords);
+            playTriad(relDeg, scale, seventhChords, inversion);
           },
           onEnter: () => setHoverIdx(i + 1000),
           onLeave: () => setHoverIdx(null),
@@ -373,7 +373,7 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect }) => {
           ),
         };
       }),
-    [modeSegs, modeIdx, quals, degIdx, hoverIdx, scale, playTriad, seventhChords],
+    [modeSegs, modeIdx, quals, degIdx, hoverIdx, scale, playTriad, seventhChords, inversion],
   );
 
   const catSegs = useMemo<Segment[]>(() => {
@@ -525,17 +525,16 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect }) => {
               y={cy - r(RAD.centre) * 0.45}
               textAnchor="middle"
               dominantBaseline="middle"
-              style={{ fontSize: size * 0.06, fontWeight: 700, ...NO_SELECT }}
+              style={{ fontSize: size * 0.05, fontWeight: 700, ...NO_SELECT }}
               fill={COLORS.stroke}
             >
-              {show(scale[degIdx])}
-              {chordSuffix(degIdx)}
+              {chordName(degIdx)}
             </text>
             <foreignObject
-              x={cx - r(RAD.centre) / 2}
-              y={cy + r(RAD.centre) * 0.38}
-              width={r(RAD.centre)}
-              height={r(RAD.centre) * 0.55}
+              x={cx - r(RAD.centre) / 2 - 5}
+              y={cy}
+              width={r(RAD.centre) + 10}
+              height={r(RAD.centre)}
             >
               <div
                 style={{
@@ -555,6 +554,19 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect }) => {
                     color: COLORS.stroke,
                   }}
                 >
+                  <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                    {[0, 1, 2, ...(seventhChords ? [3] : [])].map((value) => (
+                      <label key={value} style={{ margin: 0, lineHeight: 1 }}>
+                        <input
+                          type="radio"
+                          name="chord-inversion"
+                          checked={inversion === value}
+                          onChange={() => setInversion(value)}
+                        />
+                            {["Root", "1st", "2nd", "3rd"][value]}
+                      </label>
+                    ))}
+                  </div>
                   <label style={{ margin: 0, lineHeight: 1 }}>
                     <input
                       type="checkbox"
@@ -592,27 +604,6 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect }) => {
         <div
           style={{ display: "flex", gap: 7, flexWrap: "wrap", marginBottom: 7 }}
         >
-          {[...Array(7)].map((_, d) => {
-            const active = d === degIdx;
-            return (
-              <ActionButton
-                key={d}
-                onClick={() => {
-                  setDegIdx(d);
-                  playTriad(d, scale, seventhChords);
-                }}
-                style={{
-                  background: active ? COLORS.active : undefined,
-                  color: active ? COLORS.text : undefined,
-                }}
-              >
-                <strong style={{ color: COLORS.text }}>{romanChord(d)}</strong>
-                <br />
-                {show(scale[d])}
-                {chordSuffix(d)}
-              </ActionButton>
-            );
-          })}
           <Staff
             notes={chordNotes}
             pitches={chordPitches}
