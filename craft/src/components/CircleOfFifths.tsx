@@ -782,12 +782,15 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect, metronomeBpm =
             style={{ flex: "0 0 auto", width: "auto", marginLeft: "auto" }}
           >
             {Object.entries(INSTRUMENTS).map(([group, names], groupIndex) => (
-              <optgroup key={group} label={group}>
+              <optgroup
+                key={group}
+                label={`${group} (${groupIndex * 8 + 1}-${groupIndex * 8 + names.length})`}
+              >
                 {names.map((name, instrumentIndex) => {
                   const program = groupIndex * 8 + instrumentIndex;
                   return (
                     <option key={program} value={program}>
-                      {program + 1}. {name}
+                      {name}
                     </option>
                   );
                 })}
