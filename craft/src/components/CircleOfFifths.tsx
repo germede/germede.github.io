@@ -129,7 +129,7 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect }) => {
         scale[degIdx],
         scale[(degIdx + 2) % 7],
         scale[(degIdx + 4) % 7],
-      ], 3),
+      ]),
     [degIdx, scale],
   );
   const chordPitches = useMemo(
@@ -137,7 +137,7 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect }) => {
       scale[degIdx],
       scale[(degIdx + 2) % 7],
       scale[(degIdx + 4) % 7],
-    ], 3).map(({ pitch }) => pitch),
+    ]).map(({ pitch }) => pitch),
     [degIdx, scale],
   );
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as Tone from 'tone';
-import { BASE_OCT } from '../theory/keyboard';
+import { BASE_OCT, PIANO_START_MIDI } from '../theory/keyboard';
 import 'html-midi-player';
 
 const normalizeForTone = (note: string) =>
@@ -36,6 +36,10 @@ export const ascendNotes = (notes: string[], startOct = BASE_OCT): AscendingNote
     const out: AscendingNote[] = [];
     let octave = startOct;
     let previous = -Infinity;
+
+    while (notes.length > 0 && Tone.Frequency(normalizeForTone(`${notes[0]}${octave}`)).toMidi() < PIANO_START_MIDI) {
+        octave += 1;
+    }
 
     notes.forEach((name) => {
         let pitch = Tone.Frequency(normalizeForTone(`${name}${octave}`)).toMidi();
