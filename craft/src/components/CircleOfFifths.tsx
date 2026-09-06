@@ -72,6 +72,7 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect }) => {
   const [degIdx, setDegIdx] = useState(0);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const [solf, setSolf] = useState(false);
+  const [seventhChords, setSeventhChords] = useState(false);
   const [keyboardEnabled, setKeyboardEnabled] = useState(false);
   const [midiEnabled, setMidiEnabled] = useState(false);
 
@@ -129,17 +130,43 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect }) => {
         scale[degIdx],
         scale[(degIdx + 2) % 7],
         scale[(degIdx + 4) % 7],
+        ...(seventhChords ? [scale[(degIdx + 6) % 7]] : []),
       ]),
-    [degIdx, scale],
+    [degIdx, scale, seventhChords],
   );
   const chordPitches = useMemo(
     () => ascendNotes([
       scale[degIdx],
       scale[(degIdx + 2) % 7],
       scale[(degIdx + 4) % 7],
+      ...(seventhChords ? [scale[(degIdx + 6) % 7]] : []),
     ]).map(({ pitch }) => pitch),
-    [degIdx, scale],
+    [degIdx, scale, seventhChords],
   );
+
+  const chordSuffix = (degree: number) => {
+    if (!seventhChords) return quals[degree];
+    const root = idx(scale[degree]);
+    const third = (idx(scale[(degree + 2) % 7]) - root + 12) % 12;
+    const fifth = (idx(scale[(degree + 4) % 7]) - root + 12) % 12;
+    const seventh = (idx(scale[(degree + 6) % 7]) - root + 12) % 12;
+    if (third === 4 && fifth === 7 && seventh === 11) return "maj7";
+    if (third === 4 && fifth === 7 && seventh === 10) return "7";
+    if (third === 3 && fifth === 7 && seventh === 10) return "m7";
+    if (third === 3 && fifth === 6 && seventh === 10) return "ø7";
+    if (third === 3 && fifth === 6 && seventh === 9) return "°7";
+    return "7";
+  };
+
+  const romanChord = (degree: number) => {
+    if (!seventhChords) return romanFor(degree, quals[degree]);
+    const suffix = chordSuffix(degree);
+    if (suffix === "maj7") return `${romanFor(degree, "")}maj7`;
+    if (suffix === "m7") return `${romanFor(degree, "m")}7`;
+    if (suffix === "ø7") return `${romanFor(degree, "°").replace("°", "ø")}7`;
+    if (suffix === "°7") return `${romanFor(degree, "°")}7`;
+    return `${romanFor(degree, "")}7`;
+  };
 
   const scaleLit = useMemo(() => {
     const res: number[] = [];
@@ -181,6 +208,14 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect }) => {
       }),
     [scale],
   );
+  const selectedChordKeys = useMemo(() => {
+    const root = triads[degIdx] ?? [];
+    if (!seventhChords) return root;
+    const seventh = KEY_ORDER.findIndex(
+      (key, index) => index > (root[0] ?? -1) && enhEq(key, scale[(degIdx + 6) % 7]),
+    );
+    return seventh >= 0 ? [...root, seventh] : root;
+  }, [triads, degIdx, seventhChords, scale]);
 
   /* notify parent */
   useEffect(() => {
@@ -291,7 +326,7 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect }) => {
       modeSegs.map((m, i) => {
         const pos = xy(cx, cy, (r(RAD.romanIn) + r(RAD.romanOut)) / 2, m.mid);
         const relDeg = (MODES[i].degree - MODES[modeIdx].degree + 7) % 7;
-        const roman = romanFor(relDeg, quals[relDeg]);
+        const roman = romanChord(relDeg);
         const fill =
           relDeg === degIdx
             ? COLORS.active
@@ -304,7 +339,7 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect }) => {
           fill,
           onClick: () => {
             setDegIdx(relDeg);
-            playTriad(relDeg, scale);
+            playTriad(relDeg, scale, seventhChords);
           },
           onEnter: () => setHoverIdx(i + 1000),
           onLeave: () => setHoverIdx(null),
@@ -338,7 +373,7 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect }) => {
           ),
         };
       }),
-    [modeSegs, modeIdx, quals, degIdx, hoverIdx, scale, playTriad],
+    [modeSegs, modeIdx, quals, degIdx, hoverIdx, scale, playTriad, seventhChords],
   );
 
   const catSegs = useMemo<Segment[]>(() => {
@@ -494,13 +529,13 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect }) => {
               fill={COLORS.stroke}
             >
               {show(scale[degIdx])}
-              {quals[degIdx]}
+              {chordSuffix(degIdx)}
             </text>
             <foreignObject
               x={cx - r(RAD.centre) / 2}
-              y={cy + r(RAD.centre) * 0.58}
+              y={cy + r(RAD.centre) * 0.38}
               width={r(RAD.centre)}
-              height={r(RAD.centre) / 3}
+              height={r(RAD.centre) * 0.55}
             >
               <div
                 style={{
@@ -509,23 +544,32 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect }) => {
                   pointerEvents: "auto",
                 }}
               >
-                <label
+                <div
                   style={{
                     ...NO_SELECT,
                     fontSize: 12,
                     display: "flex",
+                    flexDirection: "column",
                     alignItems: "center",
-                    gap: 4,
+                    gap: 0,
                     color: COLORS.stroke,
                   }}
                 >
-                  <input
-                    type="checkbox"
-                    checked={solf}
-                    onChange={(e) => setSolf(e.target.checked)}
-                  />{" "}
-                  Solfège?
-                </label>
+                  <label style={{ margin: 0, lineHeight: 1 }}>
+                    <input
+                      type="checkbox"
+                      checked={seventhChords}
+                      onChange={(e) => setSeventhChords(e.target.checked)}
+                    />{" "}7th chords
+                  </label>
+                  <label style={{ margin: 0, lineHeight: 1 }}>
+                    <input
+                      type="checkbox"
+                      checked={solf}
+                      onChange={(e) => setSolf(e.target.checked)}
+                    />{" "}Solfège?
+                  </label>
+                </div>
               </div>
             </foreignObject>
           </svg>
@@ -555,19 +599,17 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect }) => {
                 key={d}
                 onClick={() => {
                   setDegIdx(d);
-                  playTriad(d, scale);
+                  playTriad(d, scale, seventhChords);
                 }}
                 style={{
                   background: active ? COLORS.active : undefined,
                   color: active ? COLORS.text : undefined,
                 }}
               >
-                <strong style={{ color: COLORS.text }}>
-                  {romanFor(d, quals[d])}
-                </strong>
+                <strong style={{ color: COLORS.text }}>{romanChord(d)}</strong>
                 <br />
                 {show(scale[d])}
-                {quals[d]}
+                {chordSuffix(d)}
               </ActionButton>
             );
           })}
@@ -578,7 +620,7 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect }) => {
             height={70}
           />
         </div>
-        <Piano lit={triads[degIdx]} playNote={() => {}} h={pianoH} />
+        <Piano lit={selectedChordKeys} playNote={() => {}} h={pianoH} />
         <h4 style={{ marginTop: 24, ...NO_SELECT }}>Input 🎹</h4>
         <div
           style={{ display: "flex", gap: 7, flexWrap: "wrap", marginBottom: 7 }}

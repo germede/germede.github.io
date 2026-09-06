@@ -120,13 +120,14 @@ export const useSynth = () => {
         window.setTimeout(() => playNoteUp(note), LIVE_NOTE_DURATION_MS);
     }, [playNoteDown, playNoteUp]);
 
-    const playTriad = useCallback(async (degree: number, scale: string[]) => {
+    const playTriad = useCallback(async (degree: number, scale: string[], includeSeventh = false) => {
         await ensureAudio();
         await loadProgram(programRef.current);
         const notes = ascend([
             scale[degree],
             scale[(degree + 2) % 7],
             scale[(degree + 4) % 7],
+            ...(includeSeventh ? [scale[(degree + 6) % 7]] : []),
         ]);
         const events = notes.map((note) => ({
             pitch: Tone.Frequency(normalizeForTone(note)).toMidi(),
