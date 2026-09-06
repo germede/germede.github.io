@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Dispatch, SetStateAction, useCallback, useEffect, useRef, useState } from 'react';
 import * as Tone from 'tone';
 import { getTempoLabel } from '../theory/tempo';
 
@@ -12,7 +12,17 @@ export interface MetronomeState {
     tempoLabel: string;
 }
 
-export const useMetronome = (initialBpm = 120, initialBeats = 4) => {
+export interface MetronomeControls {
+    state: MetronomeState;
+    setBpm: Dispatch<SetStateAction<number>>;
+    setBeats: Dispatch<SetStateAction<number>>;
+    setSubdivisions: Dispatch<SetStateAction<number>>;
+    start: () => Promise<void>;
+    stop: () => void;
+    tap: () => void;
+}
+
+export const useMetronome = (initialBpm = 120, initialBeats = 4): MetronomeControls => {
     const [bpm, setBpm] = useState(initialBpm);
     const [beats, setBeats] = useState(initialBeats);
     const [subdivisions, setSubdivisions] = useState(1);

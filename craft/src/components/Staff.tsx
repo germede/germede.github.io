@@ -5,13 +5,14 @@ import { idx } from "../theory/pitch";
 interface Props {
   notes: string[];
   pitches?: number[];
+  sequence?: MidiVisualizerElement["noteSequence"];
   signatureTonic: string;
   height?: number;
   sequential?: boolean;
   withPlayer?: boolean;
-  playRequest?: number;
   program?: number;
   showPlayer?: boolean;
+  loop?: boolean;
   hidden?: boolean;
 }
 
@@ -38,8 +39,13 @@ type MidiVisualizerElement = HTMLElement & {
 
 type MidiPlayerElement = HTMLElement & {
   noteSequence: MidiVisualizerElement["noteSequence"];
+  loop: boolean;
+  player?: {
+    stop: () => void;
+  };
   addVisualizer: (visualizer: MidiVisualizerElement) => void;
   start: () => void;
+  stop?: () => void;
 };
 
 const toMidi = (note: string) => {
@@ -48,16 +54,24 @@ const toMidi = (note: string) => {
   return (Number(match[2]) + 1) * 12 + idx(match[1]);
 };
 
+const stopMidiPlayer = (player: MidiPlayerElement | null) => {
+  if (!player) return;
+  player.loop = false;
+  player.stop?.();
+  player.player?.stop();
+};
+
 export const Staff: FC<Props> = ({
   notes,
   pitches,
+  sequence,
   signatureTonic,
   height = 42,
   sequential = false,
   withPlayer = false,
-  playRequest = 0,
   program = 0,
   showPlayer = true,
+  loop = false,
   hidden = false,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -66,6 +80,7 @@ export const Staff: FC<Props> = ({
 
   useEffect(() => {
     if (!containerRef.current) return;
+    stopMidiPlayer(playerRef.current);
 
     const visualizer = document.createElement(
       "midi-visualizer",
@@ -79,25 +94,26 @@ export const Staff: FC<Props> = ({
     const duration = 0.5;
     const noteDuration = sequential ? duration : 2;
     const spacing = sequential ? duration : 0;
-    visualizer.noteSequence = {
+    visualizer.noteSequence = sequence ?? {
       notes: notes.map((note, index) => ({
-        pitch: pitches?.[index] ?? toMidi(note),
-        startTime: index * spacing,
-        endTime: index * spacing + noteDuration,
-        velocity: 100,
-        program,
-      })),
-      totalTime: sequential ? notes.length * duration : noteDuration,
-      tempos: [{ qpm: 120, time: 0 }],
-      timeSignatures: [{ time: 0, numerator: 4, denominator: 4 }],
-      keySignatures: [{
-        key: idx(signatureTonic),
-        mode: "major",
-        time: 0,
-      }],
-    };
+          pitch: pitches?.[index] ?? toMidi(note),
+          startTime: index * spacing,
+          endTime: index * spacing + noteDuration,
+          velocity: 100,
+          program,
+        })),
+        totalTime: sequential ? notes.length * duration : noteDuration,
+        tempos: [{ qpm: 120, time: 0 }],
+        timeSignatures: [{ time: 0, numerator: 4, denominator: 4 }],
+        keySignatures: [{
+          key: idx(signatureTonic),
+          mode: "major",
+          time: 0,
+        }],
+      };
     if (player) {
       player.setAttribute("sound-font", "");
+      player.loop = loop;
       if (!showPlayer) player.style.display = "none";
       player.setAttribute("visualizer", `#${visualizerId}`);
       player.noteSequence = visualizer.noteSequence;
@@ -109,20 +125,14 @@ export const Staff: FC<Props> = ({
     }
 
     return () => {
+      stopMidiPlayer(player);
       containerRef.current?.replaceChildren();
     };
-  }, [notes, pitches, signatureTonic, sequential, visualizerId, withPlayer, program]);
+  }, [notes, pitches, sequence, signatureTonic, sequential, visualizerId, withPlayer, program]);
 
   useEffect(() => {
-    const player = playerRef.current;
-    if (!player || playRequest === 0) return;
-
-    const start = () => player.start();
-    player.addEventListener("load", start, { once: true });
-    player.start();
-
-    return () => player.removeEventListener("load", start);
-  }, [playRequest]);
+    if (playerRef.current) playerRef.current.loop = loop;
+  }, [loop]);
 
   return (
       <div

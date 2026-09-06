@@ -33,6 +33,14 @@ export interface CircleOfFifthsSelection {
 interface Props {
   size?: number;
   onSelect?: (s: CircleOfFifthsSelection) => void;
+  metronomeBpm?: number;
+}
+
+interface ProgressionChord {
+  degree: number;
+  scale: string[];
+  inversion: number;
+  seventh: boolean;
 }
 
 const NO_SELECT: React.CSSProperties = {
@@ -42,7 +50,23 @@ const NO_SELECT: React.CSSProperties = {
   msUserSelect: "none",
 };
 
-export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect }) => {
+const chordSuffixFor = (scale: string[], degree: number, seventh: boolean) => {
+  const chordQualities = qualities(scale);
+  if (!seventh) return chordQualities[degree];
+
+  const root = idx(scale[degree]);
+  const third = (idx(scale[(degree + 2) % 7]) - root + 12) % 12;
+  const fifth = (idx(scale[(degree + 4) % 7]) - root + 12) % 12;
+  const seventhInterval = (idx(scale[(degree + 6) % 7]) - root + 12) % 12;
+  if (third === 4 && fifth === 7 && seventhInterval === 11) return "maj7";
+  if (third === 4 && fifth === 7 && seventhInterval === 10) return "7";
+  if (third === 3 && fifth === 7 && seventhInterval === 10) return "m7";
+  if (third === 3 && fifth === 6 && seventhInterval === 10) return "ø7";
+  if (third === 3 && fifth === 6 && seventhInterval === 9) return "°7";
+  return "7";
+};
+
+export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect, metronomeBpm = 120 }) => {
   const cx = size / 2,
     cy = size / 2,
     r = (p: number) => p * (size / 2);
@@ -73,8 +97,10 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect }) => {
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const [solf, setSolf] = useState(false);
   const [seventhChords, setSeventhChords] = useState(false);
-  const [doubleOctaves, setDoubleOctaves] = useState(false);
+  const [doubling, setDoubling] = useState(false);
   const [inversion, setInversion] = useState(0);
+  const [progression, setProgression] = useState<ProgressionChord[]>([]);
+  const [loopProgression, setLoopProgression] = useState(false);
   const [keyboardEnabled, setKeyboardEnabled] = useState(false);
   const [midiEnabled, setMidiEnabled] = useState(false);
 
@@ -123,10 +149,10 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect }) => {
   }, [keyIdx, modeIdx]);
 
   const scaleSequence = useMemo(
-    () => doubleOctaves
+    () => doubling
       ? Array.from({ length: 15 }, (_, index) => scale[index % 7])
       : [...scale, scale[0]],
-    [scale, doubleOctaves],
+    [scale, doubling],
   );
   const ascNotes = useMemo(() => ascend(scaleSequence), [scaleSequence]);
   const ascPitches = useMemo(
@@ -142,7 +168,7 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect }) => {
   const chordVoices = useMemo(
     () => {
       const voices = invertNotes(ascendNotes(chordVoiceNames(degIdx)), inversion);
-      return doubleOctaves
+      return doubling
         ? [
             ...voices,
             ...voices.map((voice) => ({
@@ -153,30 +179,88 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect }) => {
           ]
         : voices;
     },
-    [degIdx, scale, seventhChords, inversion, doubleOctaves],
+    [degIdx, scale, seventhChords, inversion, doubling],
   );
   const chordNotes = useMemo(() => chordVoices.map(({ name }) => name), [chordVoices]);
   const chordPitches = useMemo(() => chordVoices.map(({ pitch }) => pitch), [chordVoices]);
 
-  const chordSuffix = (degree: number) => {
-    if (!seventhChords) return quals[degree];
-    const root = idx(scale[degree]);
-    const third = (idx(scale[(degree + 2) % 7]) - root + 12) % 12;
-    const fifth = (idx(scale[(degree + 4) % 7]) - root + 12) % 12;
-    const seventh = (idx(scale[(degree + 6) % 7]) - root + 12) % 12;
-    if (third === 4 && fifth === 7 && seventh === 11) return "maj7";
-    if (third === 4 && fifth === 7 && seventh === 10) return "7";
-    if (third === 3 && fifth === 7 && seventh === 10) return "m7";
-    if (third === 3 && fifth === 6 && seventh === 10) return "ø7";
-    if (third === 3 && fifth === 6 && seventh === 9) return "°7";
-    return "7";
+  const chordSuffix = (degree: number) =>
+    chordSuffixFor(scale, degree, seventhChords);
+
+  const chordLabel = (
+    chordScale: string[],
+    degree: number,
+    chordInversion: number,
+    seventh: boolean,
+  ) => {
+    const names = [
+      chordScale[degree],
+      chordScale[(degree + 2) % 7],
+      chordScale[(degree + 4) % 7],
+      ...(seventh ? [chordScale[(degree + 6) % 7]] : []),
+    ];
+    const root = chordScale[degree];
+    const bass = invertNotes(ascendNotes(names), chordInversion)[0].name
+      .replace(/-?\d+$/, "");
+    return `${show(root)}${chordSuffixFor(chordScale, degree, seventh)}${idx(bass) === idx(root) ? "" : `/${show(bass)}`}`;
   };
 
-  const chordName = (degree: number) => {
-    const root = scale[degree];
-    const bass = invertNotes(ascendNotes(chordVoiceNames(degree)), inversion)[0].name
-      .replace(/-?\d+$/, "");
-    return `${show(root)}${chordSuffix(degree)}${idx(bass) === idx(root) ? "" : `/${show(bass)}`}`;
+  const chordName = (degree: number) =>
+    chordLabel(scale, degree, inversion, seventhChords);
+
+  const progressionChordName = (chord: ProgressionChord) =>
+    chordLabel(chord.scale, chord.degree, chord.inversion, chord.seventh);
+
+  const progressionSequence = useMemo(() => {
+    const beatDuration = 60 / metronomeBpm;
+    const chordDuration = beatDuration * 4;
+    const notes = progression.flatMap((chord, chordIndex) => {
+      const chordNames = [
+        chord.scale[chord.degree],
+        chord.scale[(chord.degree + 2) % 7],
+        chord.scale[(chord.degree + 4) % 7],
+        ...(chord.seventh ? [chord.scale[(chord.degree + 6) % 7]] : []),
+      ];
+      const voices = invertNotes(ascendNotes(chordNames), chord.inversion);
+      const pitches = doubling
+        ? [...voices.map(({ pitch }) => pitch), ...voices.map(({ pitch }) => pitch + 12)]
+        : voices.map(({ pitch }) => pitch);
+      return pitches.map((pitch) => ({
+        pitch,
+        startTime: chordIndex * chordDuration,
+        endTime: (chordIndex + 1) * chordDuration,
+        velocity: 100,
+        program,
+      }));
+    });
+    return {
+      notes,
+      totalTime: progression.length * chordDuration,
+      tempos: [{ qpm: metronomeBpm, time: 0 }],
+      timeSignatures: [{ time: 0, numerator: 4, denominator: 4 }],
+      keySignatures: [{
+        key: idx(KEYS[(keyIdx + 1 - modeIdx + 12) % 12].tonic),
+        mode: "major",
+        time: 0,
+      }],
+    };
+  }, [progression, doubling, metronomeBpm, program, keyIdx, modeIdx]);
+
+  const addProgressionChord = useCallback(() => {
+    if (progression.length >= 8) return;
+    setProgression((current) => [
+      ...current,
+      {
+        degree: degIdx,
+        scale: [...scale],
+        inversion,
+        seventh: seventhChords,
+      },
+    ]);
+  }, [degIdx, scale, inversion, seventhChords, progression.length]);
+
+  const resetProgression = () => {
+    setProgression((current) => current.slice(0, -1));
   };
 
   const romanChord = (degree: number) => {
@@ -341,7 +425,7 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect }) => {
           fill,
           onClick: () => {
             setDegIdx(relDeg);
-            playTriad(relDeg, scale, seventhChords, inversion, doubleOctaves);
+            playTriad(relDeg, scale, seventhChords, inversion, doubling);
           },
           onEnter: () => setHoverIdx(i + 1000),
           onLeave: () => setHoverIdx(null),
@@ -375,7 +459,7 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect }) => {
           ),
         };
       }),
-    [modeSegs, modeIdx, quals, degIdx, hoverIdx, scale, playTriad, seventhChords, inversion, doubleOctaves],
+    [modeSegs, modeIdx, quals, degIdx, hoverIdx, scale, playTriad, seventhChords, inversion, doubling],
   );
 
   const catSegs = useMemo<Segment[]>(() => {
@@ -557,6 +641,24 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect }) => {
                   }}
                 >
                   <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                    <label style={{ margin: 0, lineHeight: 1 }}>
+                      <input
+                        type="radio"
+                        name="chord-type"
+                        checked={!seventhChords}
+                        onChange={() => setSeventhChords(false)}
+                      />{" "}Triad
+                    </label>
+                    <label style={{ margin: 0, lineHeight: 1 }}>
+                      <input
+                        type="radio"
+                        name="chord-type"
+                        checked={seventhChords}
+                        onChange={() => setSeventhChords(true)}
+                      />{" "}7th
+                    </label>
+                  </div>
+                  <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
                     {[0, 1, 2, ...(seventhChords ? [3] : [])].map((value) => (
                       <label key={value} style={{ margin: 0, lineHeight: 1 }}>
                         <input
@@ -572,16 +674,9 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect }) => {
                   <label style={{ margin: 0, lineHeight: 1 }}>
                     <input
                       type="checkbox"
-                      checked={seventhChords}
-                      onChange={(e) => setSeventhChords(e.target.checked)}
-                    />{" "}7th chords
-                  </label>
-                  <label style={{ margin: 0, lineHeight: 1 }}>
-                    <input
-                      type="checkbox"
-                      checked={doubleOctaves}
-                      onChange={(e) => setDoubleOctaves(e.target.checked)}
-                    />{" "}2 octaves
+                      checked={doubling}
+                      onChange={(e) => setDoubling(e.target.checked)}
+                    />{" "}Doubling?
                   </label>
                   <label style={{ margin: 0, lineHeight: 1 }}>
                     <input
@@ -609,15 +704,54 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect }) => {
           program={program}
         />
         <Piano lit={scaleLit} playNote={() => {}} h={pianoH} />
-        <h4 style={{ marginTop: 24, ...NO_SELECT }}>Chord 🎶</h4>
+        <h4 style={{ marginTop: 24, ...NO_SELECT }}>Chords 🎶</h4>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 7,
+            flexWrap: "wrap",
+            marginBottom: 7,
+          }}
+        >
+          <ActionButton
+            onClick={addProgressionChord}
+            disabled={progression.length >= 8}
+          >
+            +
+          </ActionButton>
+          <ActionButton onClick={resetProgression} disabled={progression.length === 0}>
+            -
+          </ActionButton>
+          <ActionButton
+            onClick={() => setLoopProgression((looping) => !looping)}
+            disabled={progression.length === 0}
+            style={{
+              background: loopProgression ? COLORS.active : undefined,
+            }}
+          >
+            Loop
+          </ActionButton>
+          <div style={{ marginLeft: "auto", textAlign: "right" }}>
+            {progression.map((chord, index) => (
+              <span key={`${index}-${chord.degree}`} style={{ ...NO_SELECT }}>
+                {index > 0 ? " - " : ""}{progressionChordName(chord)}
+              </span>
+            ))}
+          </div>
+        </div>
         <div
           style={{ display: "flex", gap: 7, flexWrap: "wrap", marginBottom: 7 }}
         >
           <Staff
-            notes={chordNotes}
-            pitches={chordPitches}
+            notes={progression.length > 0 ? [] : chordNotes}
+            pitches={progression.length > 0 ? [] : chordPitches}
+            sequence={progression.length > 0 ? progressionSequence : undefined}
             signatureTonic={signatureTonic}
             height={70}
+            withPlayer
+            loop={loopProgression}
+            program={program}
           />
         </div>
         <Piano lit={selectedChordKeys} playNote={() => {}} h={pianoH} />

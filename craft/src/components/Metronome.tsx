@@ -1,5 +1,5 @@
 import { FC } from "react";
-import { useMetronome } from "../hooks/useMetronome";
+import { MetronomeControls } from "../hooks/useMetronome";
 import { COLORS } from "../ui/colors";
 import {
   ComponentContainer,
@@ -11,16 +11,14 @@ import {
 } from "../ui/styles";
 
 type Props = {
-  initialBpm?: number;
-  initialBeats?: number;
+  controls: MetronomeControls;
 };
 
 export const Metronome: FC<Props> = ({
-  initialBpm = 120,
-  initialBeats = 4,
+  controls,
 }) => {
   const { state, setBpm, setBeats, setSubdivisions, start, stop, tap } =
-    useMetronome(initialBpm, initialBeats);
+    controls;
 
   const {
     bpm,

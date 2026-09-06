@@ -145,21 +145,21 @@ export const useSynth = () => {
         window.setTimeout(() => playNoteUp(note), LIVE_NOTE_DURATION_MS);
     }, [playNoteDown, playNoteUp]);
 
-    const playTriad = useCallback(async (degree: number, scale: string[], includeSeventh = false, inversion = 0, doubleOctaves = false) => {
+    const playTriad = useCallback(async (degree: number, scale: string[], seventh = false, inversion = 0, doubling = false) => {
         await ensureAudio();
         await loadProgram(programRef.current);
         const notes = invertNotes(ascendNotes([
             scale[degree],
             scale[(degree + 2) % 7],
             scale[(degree + 4) % 7],
-            ...(includeSeventh ? [scale[(degree + 6) % 7]] : []),
+            ...(seventh ? [scale[(degree + 6) % 7]] : []),
         ]), inversion);
         const events = notes.map((note) => ({
             pitch: note.pitch,
             velocity: 100,
             program: programRef.current,
             isDrum: false,
-        })).concat(doubleOctaves ? notes.map((note) => ({
+        })).concat(doubling ? notes.map((note) => ({
             pitch: note.pitch + 12,
             velocity: 100,
             program: programRef.current,
