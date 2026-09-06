@@ -73,6 +73,7 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect }) => {
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const [solf, setSolf] = useState(false);
   const [seventhChords, setSeventhChords] = useState(false);
+  const [doubleOctaves, setDoubleOctaves] = useState(false);
   const [inversion, setInversion] = useState(0);
   const [keyboardEnabled, setKeyboardEnabled] = useState(false);
   const [midiEnabled, setMidiEnabled] = useState(false);
@@ -121,13 +122,16 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect }) => {
     return KEYS[rel].acc;
   }, [keyIdx, modeIdx]);
 
-  const ascNotes = useMemo(
-    () => ascend([...scale, scale[0]]), // reuse helper from hook (export it)
-    [scale],
+  const scaleSequence = useMemo(
+    () => doubleOctaves
+      ? Array.from({ length: 15 }, (_, index) => scale[index % 7])
+      : [...scale, scale[0]],
+    [scale, doubleOctaves],
   );
+  const ascNotes = useMemo(() => ascend(scaleSequence), [scaleSequence]);
   const ascPitches = useMemo(
-    () => ascendNotes([...scale, scale[0]]).map(({ pitch }) => pitch),
-    [scale],
+    () => ascendNotes(scaleSequence).map(({ pitch }) => pitch),
+    [scaleSequence],
   );
   const chordVoiceNames = (degree: number) => [
     scale[degree],
@@ -136,8 +140,20 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect }) => {
     ...(seventhChords ? [scale[(degree + 6) % 7]] : []),
   ];
   const chordVoices = useMemo(
-    () => invertNotes(ascendNotes(chordVoiceNames(degIdx)), inversion),
-    [degIdx, scale, seventhChords, inversion],
+    () => {
+      const voices = invertNotes(ascendNotes(chordVoiceNames(degIdx)), inversion);
+      return doubleOctaves
+        ? [
+            ...voices,
+            ...voices.map((voice) => ({
+              ...voice,
+              name: voice.name.replace(/(-?\d+)$/, (octave) => String(Number(octave) + 1)),
+              pitch: voice.pitch + 12,
+            })),
+          ]
+        : voices;
+    },
+    [degIdx, scale, seventhChords, inversion, doubleOctaves],
   );
   const chordNotes = useMemo(() => chordVoices.map(({ name }) => name), [chordVoices]);
   const chordPitches = useMemo(() => chordVoices.map(({ pitch }) => pitch), [chordVoices]);
@@ -174,24 +190,10 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect }) => {
   };
 
   const scaleLit = useMemo(() => {
-    const res: number[] = [];
-    let last = KEY_ORDER.findIndex((key) => enhEq(key, scale[0]));
-    res.push(last);
-    for (let i = 1; i < scale.length; i++) {
-      const next = KEY_ORDER.findIndex(
-        (key, index) => index > last && enhEq(key, scale[i]),
-      );
-      if (next >= 0) {
-        res.push(next);
-        last = next;
-      }
-    }
-    const oct = KEY_ORDER.findIndex(
-      (key, index) => index > last && enhEq(key, scale[0]),
-    );
-    if (oct >= 0) res.push(oct);
-    return res;
-  }, [scale]);
+    return ascPitches
+      .map((pitch) => pitch - PIANO_START_MIDI)
+      .filter((index) => index >= 0 && index < KEY_ORDER.length);
+  }, [ascPitches]);
 
   const triads = useMemo(
     () =>
@@ -339,7 +341,7 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect }) => {
           fill,
           onClick: () => {
             setDegIdx(relDeg);
-            playTriad(relDeg, scale, seventhChords, inversion);
+            playTriad(relDeg, scale, seventhChords, inversion, doubleOctaves);
           },
           onEnter: () => setHoverIdx(i + 1000),
           onLeave: () => setHoverIdx(null),
@@ -373,7 +375,7 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect }) => {
           ),
         };
       }),
-    [modeSegs, modeIdx, quals, degIdx, hoverIdx, scale, playTriad, seventhChords, inversion],
+    [modeSegs, modeIdx, quals, degIdx, hoverIdx, scale, playTriad, seventhChords, inversion, doubleOctaves],
   );
 
   const catSegs = useMemo<Segment[]>(() => {
@@ -532,7 +534,7 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect }) => {
             </text>
             <foreignObject
               x={cx - r(RAD.centre) / 2 - 5}
-              y={cy}
+              y={cy - 10}
               width={r(RAD.centre) + 10}
               height={r(RAD.centre)}
             >
@@ -573,6 +575,13 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect }) => {
                       checked={seventhChords}
                       onChange={(e) => setSeventhChords(e.target.checked)}
                     />{" "}7th chords
+                  </label>
+                  <label style={{ margin: 0, lineHeight: 1 }}>
+                    <input
+                      type="checkbox"
+                      checked={doubleOctaves}
+                      onChange={(e) => setDoubleOctaves(e.target.checked)}
+                    />{" "}2 octaves
                   </label>
                   <label style={{ margin: 0, lineHeight: 1 }}>
                     <input

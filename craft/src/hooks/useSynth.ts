@@ -68,6 +68,7 @@ export const invertNotes = (notes: AscendingNote[], inversion: number) => {
             while (pitch - 12 >= PIANO_START_MIDI) pitch -= 12;
             while (pitch < PIANO_START_MIDI) pitch += 12;
         } else {
+            while (pitch - 12 > previous) pitch -= 12;
             while (pitch <= previous) pitch += 12;
         }
         previous = pitch;
@@ -144,7 +145,7 @@ export const useSynth = () => {
         window.setTimeout(() => playNoteUp(note), LIVE_NOTE_DURATION_MS);
     }, [playNoteDown, playNoteUp]);
 
-    const playTriad = useCallback(async (degree: number, scale: string[], includeSeventh = false, inversion = 0) => {
+    const playTriad = useCallback(async (degree: number, scale: string[], includeSeventh = false, inversion = 0, doubleOctaves = false) => {
         await ensureAudio();
         await loadProgram(programRef.current);
         const notes = invertNotes(ascendNotes([
@@ -158,7 +159,12 @@ export const useSynth = () => {
             velocity: 100,
             program: programRef.current,
             isDrum: false,
-        }));
+        })).concat(doubleOctaves ? notes.map((note) => ({
+            pitch: note.pitch + 12,
+            velocity: 100,
+            program: programRef.current,
+            isDrum: false,
+        })) : []);
         events.forEach((event) => elementRef.current?.player?.playNoteDown(event));
         window.setTimeout(() => {
             events.forEach((event) => elementRef.current?.player?.playNoteUp(event));
