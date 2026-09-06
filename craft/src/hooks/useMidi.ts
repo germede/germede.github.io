@@ -1,26 +1,24 @@
 import { useEffect, useState, useCallback } from 'react';
-import { KEY_ORDER, KEY_MAP, BASE_OCT } from '../theory/keyboard';
+import { KEY_ORDER, KEY_MAP, PIANO_START_MIDI } from '../theory/keyboard';
+import { idx } from '../theory/pitch';
 
 const CHROM_SHARP = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'] as const;
 const midiNumToNote = (n: number) => `${CHROM_SHARP[n % 12]}${Math.floor(n / 12) - 1}`;
 
 const noteToPianoKeyIndex = (note: string) => {
-    const noteName = note.replace(/[0-9]/g, ''); // "C", "C#"
-    const octave = parseInt(note.replace(/[^0-9]/g, ''), 10); // 3, 4
-
-    let baseIndex = KEY_ORDER.findIndex(k => k === noteName);
-
-    if (baseIndex === -1) return -1; // Should not happen with valid notes
-
-    // Adjust for octave. If octave is BASE_OCT + 1, add 12 to the index.
-    // Assuming BASE_OCT is 3, C3-B3 are indices 0-11, and C4-B4 are indices 12-23.
-    if (octave === BASE_OCT + 1) {
-        baseIndex += 12; // Move to the second octave in KEY_ORDER
-    }
-    return baseIndex;
+    const noteName = note.replace(/-?\d+$/, '');
+    const octave = parseInt(note.match(/-?\d+$/)?.[0] ?? '', 10);
+    const midi = (octave + 1) * 12 + idx(noteName);
+    const baseIndex = midi - PIANO_START_MIDI;
+    return baseIndex >= 0 && baseIndex < KEY_ORDER.length ? baseIndex : -1;
 };
 
-export const useMidi = (play: (n: string) => void, interactive: boolean, enabled: boolean) => {
+export const useMidi = (
+    play: (n: string) => void,
+    interactive: boolean,
+    enabled: boolean,
+    release?: (n: string) => void,
+) => {
     const [lit, setLit] = useState<Set<number>>(new Set());
     const [pressedKeys, setPressedKeys] = useState(new Set<string>());
     const [midiReady, setMidiReady] = useState(false);
@@ -34,15 +32,16 @@ export const useMidi = (play: (n: string) => void, interactive: boolean, enabled
                 const onMsg = (e: MIDIMessageEvent) => {
                     const [status, num, vel] = e.data as Uint8Array;
                     const cmd = status & 0xf0;
-                    const inRange = (n: number) => n - 48 >= 0 && n - 48 < KEY_ORDER.length;
+                    const inRange = (n: number) => n - PIANO_START_MIDI >= 0 && n - PIANO_START_MIDI < KEY_ORDER.length;
 
                     if (cmd === 0x90 && vel > 0) {
                         play(midiNumToNote(num));
-                        if (inRange(num)) setLit(p => new Set(p).add(num - 48));
+                        if (inRange(num)) setLit(p => new Set(p).add(num - PIANO_START_MIDI));
                     }
                     if (cmd === 0x80 || (cmd === 0x90 && vel === 0)) {
+                        release?.(midiNumToNote(num));
                         if (inRange(num)) setLit(p => {
-                            const n = new Set(p); n.delete(num - 48); return n;
+                            const n = new Set(p); n.delete(num - PIANO_START_MIDI); return n;
                         });
                     }
                 };
@@ -56,10 +55,12 @@ export const useMidi = (play: (n: string) => void, interactive: boolean, enabled
 
         const handleKeyDown = (event: KeyboardEvent) => {
             if (!interactive) return;
-            const note = KEY_MAP[event.key];
-            if (note && !pressedKeys.has(event.key)) {
+            const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+            const note = KEY_MAP[key];
+            const pressedKey = event.code || event.key;
+            if (note && !pressedKeys.has(pressedKey)) {
                 event.preventDefault();
-                setPressedKeys(prev => new Set(prev).add(event.key));
+                setPressedKeys(prev => new Set(prev).add(pressedKey));
                 play(note);
                 setLit(p => new Set(p).add(noteToPianoKeyIndex(note)));
             }
@@ -67,11 +68,13 @@ export const useMidi = (play: (n: string) => void, interactive: boolean, enabled
 
         const handleKeyUp = (event: KeyboardEvent) => {
             if (!interactive) return;
-            const note = KEY_MAP[event.key];
+            const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+            const note = KEY_MAP[key];
             if (note) {
+                release?.(note);
                 setPressedKeys(prev => {
                     const next = new Set(prev);
-                    next.delete(event.key);
+                    next.delete(event.code || event.key);
                     return next;
                 });
                 setLit(p => {
@@ -92,7 +95,7 @@ export const useMidi = (play: (n: string) => void, interactive: boolean, enabled
                 window.removeEventListener('keyup', handleKeyUp);
             }
         };
-    }, [play, interactive, enabled, pressedKeys]);
+    }, [play, interactive, enabled, pressedKeys, release]);
 
     return { lit, midiReady };
 };
