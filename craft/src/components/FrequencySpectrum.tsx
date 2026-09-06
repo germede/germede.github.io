@@ -62,7 +62,7 @@ const FrequencySpectrum: React.FC<FrequencySpectrumProps> = ({ frequencyData, au
         context.lineTo(width - padding, height - padding);
         context.stroke();
         context.fillText('Frequency (Hz)', width / 2 - 30, height - 10);
-        const numTicks = Math.floor((width - 2 * padding) / 80);
+        const numTicks = Math.max(1, Math.floor((width - 2 * padding) / 80));
         for (let i = 0; i <= numTicks; i++) {
             const x = padding + (i / numTicks) * (width - 2 * padding);
             const freq = Math.round((i / numTicks) * maxFrequency);
@@ -92,7 +92,19 @@ const FrequencySpectrum: React.FC<FrequencySpectrumProps> = ({ frequencyData, au
     }
   }, [frequencyData, audioContext, maxFrequency, size]);
 
-  return <div ref={containerRef} style={{ width: '100%', height: '200px' }}><canvas ref={canvasRef} width={size.width} height={size.height} /></div>;
+  return (
+    <div
+      ref={containerRef}
+      style={{ width: '100%', height: '200px', overflow: 'hidden' }}
+    >
+      <canvas
+        ref={canvasRef}
+        width={size.width}
+        height={size.height}
+        style={{ display: 'block', width: '100%', maxWidth: '100%', height: '200px' }}
+      />
+    </div>
+  );
 };
 
 export default FrequencySpectrum;

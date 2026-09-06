@@ -607,17 +607,17 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect, metronomeBpm =
             <circle cx={cx} cy={cy} r={r(RAD.centre)} fill={COLORS.text} />
             <text
               x={cx}
-              y={cy - r(RAD.centre) * 0.45}
+              y={cy - r(RAD.centre) * 0.55}
               textAnchor="middle"
               dominantBaseline="middle"
-              style={{ fontSize: size * 0.05, fontWeight: 700, ...NO_SELECT }}
+              style={{ fontSize: size * 0.03, fontWeight: 700, ...NO_SELECT }}
               fill={COLORS.stroke}
             >
               {chordName(degIdx)}
             </text>
             <foreignObject
               x={cx - r(RAD.centre) / 2 - 5}
-              y={cy - 10}
+              y={cy - 40}
               width={r(RAD.centre) + 10}
               height={r(RAD.centre)}
             >
