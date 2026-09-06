@@ -1,5 +1,4 @@
-import { FC, ReactNode, useMemo, useState, useEffect } from "react";
-import * as Tone from "tone";
+import { FC, ReactNode, useMemo, useState, useEffect, useCallback } from "react";
 import { COLORS } from "../ui/colors";
 import { ActionButton } from "../ui/styles";
 import { xy } from "../ui/geometry";
@@ -17,8 +16,9 @@ import { enhEq, idx } from "../theory/pitch";
 import { Ring, Segment } from "./Ring";
 import { Piano } from "./Piano";
 import { Staff } from "./Staff";
-import { useSynth, ascend } from "../hooks/useSynth";
+import { ascend, ascendNotes, useSynth } from "../hooks/useSynth";
 import { useMidi } from "../hooks/useMidi";
+import { INSTRUMENTS } from "../ui/instruments";
 
 export interface CircleOfFifthsSelection {
   tonic: string;
@@ -75,18 +75,19 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect }) => {
   const [keyboardEnabled, setKeyboardEnabled] = useState(false);
   const [midiEnabled, setMidiEnabled] = useState(false);
 
-  const {
-    playSingle,
-    playTriad,
-    playScale,
-    playingScale,
-    ensureAudio,
-    audioReady,
-  } = useSynth();
+    const {
+      playSingle: playInputNote,
+      playNoteDown,
+      playNoteUp,
+      playTriad,
+      setInstrument,
+      program,
+    } = useSynth();
   const { lit: midiLit, midiReady } = useMidi(
-    playSingle,
+    playNoteDown,
     keyboardEnabled,
     midiEnabled,
+    playNoteUp,
   );
 
   const pattern = useMemo(() => {
@@ -117,6 +118,27 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect }) => {
   const ascNotes = useMemo(
     () => ascend([...scale, scale[0]]), // reuse helper from hook (export it)
     [scale],
+  );
+  const ascPitches = useMemo(
+    () => ascendNotes([...scale, scale[0]]).map(({ pitch }) => pitch),
+    [scale],
+  );
+  const chordNotes = useMemo(
+    () =>
+      ascend([
+        scale[degIdx],
+        scale[(degIdx + 2) % 7],
+        scale[(degIdx + 4) % 7],
+      ], 3),
+    [degIdx, scale],
+  );
+  const chordPitches = useMemo(
+    () => ascendNotes([
+      scale[degIdx],
+      scale[(degIdx + 2) % 7],
+      scale[(degIdx + 4) % 7],
+    ], 3).map(({ pitch }) => pitch),
+    [degIdx, scale],
   );
 
   const scaleLit = useMemo(() => {
@@ -356,12 +378,6 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect }) => {
     });
   }, [romanSegs, cx, cy]);
 
-  /* staff layout */
-  const staffGap = size * 0.0085,
-    staffW = size * 0.2;
-  const staffLeft = cx - staffW / 2;
-  const staffY0Treble = cy - 2 * staffGap,
-    staffY0Bass = cy + 5 * staffGap;
   const pianoH = size / 3;
 
   const startOuter = (keyIdx - modeIdx + 12) % 12;
@@ -376,6 +392,7 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect }) => {
     "melodic",
   ];
   const radii = [RAD.aeolianR1, RAD.aeolianR2, RAD.aeolianR3, RAD.aeolianR4];
+  const signatureTonic = KEYS[(keyIdx + 1 - modeIdx + 12) % 12].tonic;
 
   return (
     <div
@@ -479,17 +496,9 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect }) => {
               {show(scale[degIdx])}
               {quals[degIdx]}
             </text>
-            <Staff
-              left={staffLeft}
-              gap={staffGap}
-              width={staffW}
-              y0Treble={staffY0Treble}
-              y0Bass={staffY0Bass}
-              accidentals={acc}
-            />
             <foreignObject
               x={cx - r(RAD.centre) / 2}
-              y={cy + r(RAD.centre) / 2}
+              y={cy + r(RAD.centre) * 0.58}
               width={r(RAD.centre)}
               height={r(RAD.centre) / 3}
             >
@@ -525,17 +534,15 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect }) => {
 
       <div style={{ flex: "1 1 500px" }}>
         <h4 style={{ marginTop: 24, ...NO_SELECT }}>Scale 🪜</h4>
-        <div
-          style={{ display: "flex", gap: 7, flexWrap: "wrap", marginBottom: 7 }}
-        >
-          <button
-            onClick={() => playScale(ascNotes)}
-            disabled={playingScale}
-            style={{ background: playingScale ? COLORS.active : undefined }}
-          >
-            {playingScale ? "Playing…" : "Play"}
-          </button>
-        </div>
+        <Staff
+          notes={ascNotes}
+          pitches={ascPitches}
+          signatureTonic={signatureTonic}
+          height={92}
+          sequential
+          withPlayer
+          program={program}
+        />
         <Piano lit={scaleLit} playNote={() => {}} h={pianoH} />
         <h4 style={{ marginTop: 24, ...NO_SELECT }}>Chord 🎶</h4>
         <div
@@ -555,25 +562,27 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect }) => {
                   color: active ? COLORS.text : undefined,
                 }}
               >
-                {romanFor(d, quals[d])}: {show(scale[d])}
+                <strong style={{ color: COLORS.text }}>
+                  {romanFor(d, quals[d])}
+                </strong>
+                <br />
+                {show(scale[d])}
                 {quals[d]}
               </ActionButton>
             );
           })}
+          <Staff
+            notes={chordNotes}
+            pitches={chordPitches}
+            signatureTonic={signatureTonic}
+            height={70}
+          />
         </div>
         <Piano lit={triads[degIdx]} playNote={() => {}} h={pianoH} />
         <h4 style={{ marginTop: 24, ...NO_SELECT }}>Input 🎹</h4>
         <div
           style={{ display: "flex", gap: 7, flexWrap: "wrap", marginBottom: 7 }}
         >
-          <ActionButton
-            onClick={() => setMidiEnabled(!midiEnabled)}
-            style={{
-              background: midiReady ? COLORS.active : undefined,
-            }}
-          >
-            MIDI
-          </ActionButton>
           <ActionButton
             onClick={() => setKeyboardEnabled(!keyboardEnabled)}
             style={{
@@ -582,12 +591,40 @@ export const CircleOfFifths: FC<Props> = ({ size = 600, onSelect }) => {
           >
             Keyboard
           </ActionButton>
+          <ActionButton
+            onClick={() => setMidiEnabled(!midiEnabled)}
+            style={{
+              background: midiReady ? COLORS.active : undefined,
+            }}
+          >
+            MIDI
+          </ActionButton>
+          <select
+            aria-label="Instrument"
+            defaultValue={0}
+            onChange={(e) => setInstrument(Number(e.target.value))}
+            style={{ flex: "0 0 auto", width: "auto", marginLeft: "auto" }}
+          >
+            {Object.entries(INSTRUMENTS).map(([group, names], groupIndex) => (
+              <optgroup key={group} label={group}>
+                {names.map((name, instrumentIndex) => {
+                  const program = groupIndex * 8 + instrumentIndex;
+                  return (
+                    <option key={program} value={program}>
+                      {program + 1}. {name}
+                    </option>
+                  );
+                })}
+              </optgroup>
+            ))}
+          </select>
         </div>
         <Piano
           lit={Array.from(midiLit)}
-          playNote={playSingle}
+          playNote={playInputNote}
           h={pianoH}
           interactive
+          showInputLabels
         />
       </div>
     </div>
